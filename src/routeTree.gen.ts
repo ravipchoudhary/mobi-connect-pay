@@ -9,38 +9,293 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppWalletRouteImport } from './routes/_app.wallet'
+import { Route as AppUsersRouteImport } from './routes/_app.users'
+import { Route as AppSupportRouteImport } from './routes/_app.support'
+import { Route as AppSettlementRouteImport } from './routes/_app.settlement'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppRolesRouteImport } from './routes/_app.roles'
+import { Route as AppReportsRouteImport } from './routes/_app.reports'
+import { Route as AppRechargeRouteImport } from './routes/_app.recharge'
+import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
+import { Route as AppKycRouteImport } from './routes/_app.kyc'
+import { Route as AppDmtRouteImport } from './routes/_app.dmt'
+import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppCommissionRouteImport } from './routes/_app.commission'
+import { Route as AppBbpsRouteImport } from './routes/_app.bbps'
+import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
+import { Route as AppApiManagementRouteImport } from './routes/_app.api-management'
+import { Route as AppAepsRouteImport } from './routes/_app.aeps'
+import { Route as AppActivityRouteImport } from './routes/_app.activity'
 
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppWalletRoute = AppWalletRouteImport.update({
+  id: '/wallet',
+  path: '/wallet',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppUsersRoute = AppUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSupportRoute = AppSupportRouteImport.update({
+  id: '/support',
+  path: '/support',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettlementRoute = AppSettlementRouteImport.update({
+  id: '/settlement',
+  path: '/settlement',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRolesRoute = AppRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRechargeRoute = AppRechargeRouteImport.update({
+  id: '/recharge',
+  path: '/recharge',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNotificationsRoute = AppNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppKycRoute = AppKycRouteImport.update({
+  id: '/kyc',
+  path: '/kyc',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDmtRoute = AppDmtRouteImport.update({
+  id: '/dmt',
+  path: '/dmt',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDashboardRoute = AppDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCommissionRoute = AppCommissionRouteImport.update({
+  id: '/commission',
+  path: '/commission',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppBbpsRoute = AppBbpsRouteImport.update({
+  id: '/bbps',
+  path: '/bbps',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAuditLogsRoute = AppAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppApiManagementRoute = AppApiManagementRouteImport.update({
+  id: '/api-management',
+  path: '/api-management',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAepsRoute = AppAepsRouteImport.update({
+  id: '/aeps',
+  path: '/aeps',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppActivityRoute = AppActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/activity': typeof AppActivityRoute
+  '/aeps': typeof AppAepsRoute
+  '/api-management': typeof AppApiManagementRoute
+  '/audit-logs': typeof AppAuditLogsRoute
+  '/bbps': typeof AppBbpsRoute
+  '/commission': typeof AppCommissionRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/dmt': typeof AppDmtRoute
+  '/kyc': typeof AppKycRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/recharge': typeof AppRechargeRoute
+  '/reports': typeof AppReportsRoute
+  '/roles': typeof AppRolesRoute
+  '/settings': typeof AppSettingsRoute
+  '/settlement': typeof AppSettlementRoute
+  '/support': typeof AppSupportRoute
+  '/users': typeof AppUsersRoute
+  '/wallet': typeof AppWalletRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/activity': typeof AppActivityRoute
+  '/aeps': typeof AppAepsRoute
+  '/api-management': typeof AppApiManagementRoute
+  '/audit-logs': typeof AppAuditLogsRoute
+  '/bbps': typeof AppBbpsRoute
+  '/commission': typeof AppCommissionRoute
+  '/dashboard': typeof AppDashboardRoute
+  '/dmt': typeof AppDmtRoute
+  '/kyc': typeof AppKycRoute
+  '/notifications': typeof AppNotificationsRoute
+  '/recharge': typeof AppRechargeRoute
+  '/reports': typeof AppReportsRoute
+  '/roles': typeof AppRolesRoute
+  '/settings': typeof AppSettingsRoute
+  '/settlement': typeof AppSettlementRoute
+  '/support': typeof AppSupportRoute
+  '/users': typeof AppUsersRoute
+  '/wallet': typeof AppWalletRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/_app/activity': typeof AppActivityRoute
+  '/_app/aeps': typeof AppAepsRoute
+  '/_app/api-management': typeof AppApiManagementRoute
+  '/_app/audit-logs': typeof AppAuditLogsRoute
+  '/_app/bbps': typeof AppBbpsRoute
+  '/_app/commission': typeof AppCommissionRoute
+  '/_app/dashboard': typeof AppDashboardRoute
+  '/_app/dmt': typeof AppDmtRoute
+  '/_app/kyc': typeof AppKycRoute
+  '/_app/notifications': typeof AppNotificationsRoute
+  '/_app/recharge': typeof AppRechargeRoute
+  '/_app/reports': typeof AppReportsRoute
+  '/_app/roles': typeof AppRolesRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settlement': typeof AppSettlementRoute
+  '/_app/support': typeof AppSupportRoute
+  '/_app/users': typeof AppUsersRoute
+  '/_app/wallet': typeof AppWalletRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/activity'
+    | '/aeps'
+    | '/api-management'
+    | '/audit-logs'
+    | '/bbps'
+    | '/commission'
+    | '/dashboard'
+    | '/dmt'
+    | '/kyc'
+    | '/notifications'
+    | '/recharge'
+    | '/reports'
+    | '/roles'
+    | '/settings'
+    | '/settlement'
+    | '/support'
+    | '/users'
+    | '/wallet'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/activity'
+    | '/aeps'
+    | '/api-management'
+    | '/audit-logs'
+    | '/bbps'
+    | '/commission'
+    | '/dashboard'
+    | '/dmt'
+    | '/kyc'
+    | '/notifications'
+    | '/recharge'
+    | '/reports'
+    | '/roles'
+    | '/settings'
+    | '/settlement'
+    | '/support'
+    | '/users'
+    | '/wallet'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/auth'
+    | '/_app/activity'
+    | '/_app/aeps'
+    | '/_app/api-management'
+    | '/_app/audit-logs'
+    | '/_app/bbps'
+    | '/_app/commission'
+    | '/_app/dashboard'
+    | '/_app/dmt'
+    | '/_app/kyc'
+    | '/_app/notifications'
+    | '/_app/recharge'
+    | '/_app/reports'
+    | '/_app/roles'
+    | '/_app/settings'
+    | '/_app/settlement'
+    | '/_app/support'
+    | '/_app/users'
+    | '/_app/wallet'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  AuthRoute: typeof AuthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +303,183 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/wallet': {
+      id: '/_app/wallet'
+      path: '/wallet'
+      fullPath: '/wallet'
+      preLoaderRoute: typeof AppWalletRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/users': {
+      id: '/_app/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof AppUsersRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/support': {
+      id: '/_app/support'
+      path: '/support'
+      fullPath: '/support'
+      preLoaderRoute: typeof AppSupportRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settlement': {
+      id: '/_app/settlement'
+      path: '/settlement'
+      fullPath: '/settlement'
+      preLoaderRoute: typeof AppSettlementRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/roles': {
+      id: '/_app/roles'
+      path: '/roles'
+      fullPath: '/roles'
+      preLoaderRoute: typeof AppRolesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/reports': {
+      id: '/_app/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/recharge': {
+      id: '/_app/recharge'
+      path: '/recharge'
+      fullPath: '/recharge'
+      preLoaderRoute: typeof AppRechargeRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/notifications': {
+      id: '/_app/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AppNotificationsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/kyc': {
+      id: '/_app/kyc'
+      path: '/kyc'
+      fullPath: '/kyc'
+      preLoaderRoute: typeof AppKycRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dmt': {
+      id: '/_app/dmt'
+      path: '/dmt'
+      fullPath: '/dmt'
+      preLoaderRoute: typeof AppDmtRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/dashboard': {
+      id: '/_app/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/commission': {
+      id: '/_app/commission'
+      path: '/commission'
+      fullPath: '/commission'
+      preLoaderRoute: typeof AppCommissionRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/bbps': {
+      id: '/_app/bbps'
+      path: '/bbps'
+      fullPath: '/bbps'
+      preLoaderRoute: typeof AppBbpsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/audit-logs': {
+      id: '/_app/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AppAuditLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/api-management': {
+      id: '/_app/api-management'
+      path: '/api-management'
+      fullPath: '/api-management'
+      preLoaderRoute: typeof AppApiManagementRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/aeps': {
+      id: '/_app/aeps'
+      path: '/aeps'
+      fullPath: '/aeps'
+      preLoaderRoute: typeof AppAepsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/activity': {
+      id: '/_app/activity'
+      path: '/activity'
+      fullPath: '/activity'
+      preLoaderRoute: typeof AppActivityRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppActivityRoute: typeof AppActivityRoute
+  AppAepsRoute: typeof AppAepsRoute
+  AppApiManagementRoute: typeof AppApiManagementRoute
+  AppAuditLogsRoute: typeof AppAuditLogsRoute
+  AppBbpsRoute: typeof AppBbpsRoute
+  AppCommissionRoute: typeof AppCommissionRoute
+  AppDashboardRoute: typeof AppDashboardRoute
+  AppDmtRoute: typeof AppDmtRoute
+  AppKycRoute: typeof AppKycRoute
+  AppNotificationsRoute: typeof AppNotificationsRoute
+  AppRechargeRoute: typeof AppRechargeRoute
+  AppReportsRoute: typeof AppReportsRoute
+  AppRolesRoute: typeof AppRolesRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettlementRoute: typeof AppSettlementRoute
+  AppSupportRoute: typeof AppSupportRoute
+  AppUsersRoute: typeof AppUsersRoute
+  AppWalletRoute: typeof AppWalletRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppActivityRoute: AppActivityRoute,
+  AppAepsRoute: AppAepsRoute,
+  AppApiManagementRoute: AppApiManagementRoute,
+  AppAuditLogsRoute: AppAuditLogsRoute,
+  AppBbpsRoute: AppBbpsRoute,
+  AppCommissionRoute: AppCommissionRoute,
+  AppDashboardRoute: AppDashboardRoute,
+  AppDmtRoute: AppDmtRoute,
+  AppKycRoute: AppKycRoute,
+  AppNotificationsRoute: AppNotificationsRoute,
+  AppRechargeRoute: AppRechargeRoute,
+  AppReportsRoute: AppReportsRoute,
+  AppRolesRoute: AppRolesRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppSettlementRoute: AppSettlementRoute,
+  AppSupportRoute: AppSupportRoute,
+  AppUsersRoute: AppUsersRoute,
+  AppWalletRoute: AppWalletRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
