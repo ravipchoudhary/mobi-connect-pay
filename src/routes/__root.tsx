@@ -91,6 +91,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Pay Solution — Premium Fintech Dashboard" },
+      { name: "description", content: "Pay Solution is a premium fintech platform for Recharge, BBPS, AEPS, DMT, Wallet and Settlements. Secure Mobile OTP login." },
+      { property: "og:description", content: "Pay Solution is a premium fintech platform for Recharge, BBPS, AEPS, DMT, Wallet and Settlements. Secure Mobile OTP login." },
+      { name: "twitter:description", content: "Pay Solution is a premium fintech platform for Recharge, BBPS, AEPS, DMT, Wallet and Settlements. Secure Mobile OTP login." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6adf328-cfb7-4bf3-9b7a-7b15e4989d5d/id-preview-bcb21ba7--ab000d2a-13df-4f39-935a-bcb31640ad14.lovable.app-1783418890844.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/f6adf328-cfb7-4bf3-9b7a-7b15e4989d5d/id-preview-bcb21ba7--ab000d2a-13df-4f39-935a-bcb31640ad14.lovable.app-1783418890844.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
