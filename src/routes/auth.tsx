@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { z } from "zod";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   ShieldCheck,
@@ -12,7 +13,6 @@ import {
   Zap,
   KeyRound,
   UserCircle2,
-  FileCheck2,
   Loader2,
 } from "lucide-react";
 
@@ -20,40 +20,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import {
-  createUser,
-  findUserByMobile,
-  getSession,
-  loginUser,
-  sendOtp,
-  updateUser,
-  verifyOtp,
-  type User,
-} from "@/lib/auth-store";
+import { supabase } from "@/integrations/supabase/client";
+import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
-type Step = "mobile" | "otp" | "details" | "kyc" | "done";
+type Step = "mobile" | "otp" | "name";
 
-const mobileSchema = z
-  .string()
-  .regex(/^[6-9]\d{9}$/u, "Enter a valid 10-digit Indian mobile number");
+const mobileSchema = z.string().regex(/^[6-9]\d{9}$/u, "Enter a valid 10-digit Indian mobile number");
 
 function AuthPage() {
   const navigate = useNavigate();
+  const send = useServerFn(sendMobileOtp);
+  const verify = useServerFn(verifyMobileOtp);
+
   const [step, setStep] = useState<Step>("mobile");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [pendingUser, setPendingUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (getSession()) navigate({ to: "/dashboard" });
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) navigate({ to: "/dashboard" });
+    });
   }, [navigate]);
 
   useEffect(() => {
@@ -64,20 +58,15 @@ function AuthPage() {
 
   const handleSendOtp = async (isResend = false) => {
     const parsed = mobileSchema.safeParse(mobile);
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0].message);
-      return;
-    }
+    if (!parsed.success) return toast.error(parsed.error.issues[0].message);
     setLoading(true);
     try {
-      const { code } = sendOtp(mobile);
-      setDevOtp(code);
+      const res = await send({ data: { mobile } });
+      setDevOtp(res.devOtp ?? null);
       setResendIn(30);
-      const existing = findUserByMobile(mobile);
-      setIsNewUser(!existing);
       if (!isResend) setStep("otp");
       toast.success(`OTP sent to +91 ${mobile}`, {
-        description: `Dev preview: ${code}`,
+        description: res.devOtp ? `Dev preview: ${res.devOtp}` : undefined,
       });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send OTP");
@@ -86,21 +75,43 @@ function AuthPage() {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      toast.error("Enter the 6-digit OTP");
-      return;
-    }
+  const finishSignIn = async (nameOverride?: string) => {
     setLoading(true);
     try {
-      verifyOtp(mobile, otp);
-      const existing = findUserByMobile(mobile);
-      if (existing) {
-        loginUser(existing.id);
+      const res = await verify({ data: { mobile, code: otp, fullName: nameOverride } });
+      const { error } = await supabase.auth.verifyOtp({
+        type: "magiclink",
+        token_hash: res.tokenHash,
+      });
+      if (error) throw error;
+      toast.success("Welcome to Pay Solution");
+      navigate({ to: "/dashboard" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otp.length !== 6) return toast.error("Enter the 6-digit OTP");
+    // Peek: does a profile with a name already exist? If yes, go straight in.
+    // We call verify with no fullName; if the profile is fresh we then ask for name.
+    setLoading(true);
+    try {
+      const res = await verify({ data: { mobile, code: otp } });
+      const { error } = await supabase.auth.verifyOtp({
+        type: "magiclink",
+        token_hash: res.tokenHash,
+      });
+      if (error) throw error;
+      // Check if profile already has a full name.
+      const { data: prof } = await supabase.from("profiles").select("full_name").eq("mobile", mobile).maybeSingle();
+      if (prof && prof.full_name && prof.full_name.trim().length > 1) {
         toast.success("Welcome back!");
         navigate({ to: "/dashboard" });
       } else {
-        setStep("details");
+        setStep("name");
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Verification failed");
@@ -109,18 +120,24 @@ function AuthPage() {
     }
   };
 
-  const handleDetails = (data: { fullName: string; email: string }) => {
-    const user = createUser({ mobile, fullName: data.fullName, email: data.email });
-    setPendingUser(user);
-    setStep("kyc");
-  };
-
-  const handleKyc = () => {
-    if (!pendingUser) return;
-    updateUser(pendingUser.id, { kycStatus: "pending" });
-    loginUser(pendingUser.id);
-    toast.success("Account created — KYC under review");
-    navigate({ to: "/dashboard" });
+  const submitName = async () => {
+    if (fullName.trim().length < 2) return toast.error("Enter your full name");
+    setLoading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Session expired");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: fullName.trim() })
+        .eq("id", u.user.id);
+      if (error) throw error;
+      toast.success("Account ready");
+      navigate({ to: "/dashboard" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save details");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -129,7 +146,6 @@ function AuthPage() {
       <div className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-14">
         <div className="w-full max-w-md">
           <StepIndicator step={step} />
-
           <AnimatePresence mode="wait">
             {step === "mobile" && (
               <StepShell key="mobile" title="Sign in to Pay Solution" subtitle="Enter your mobile number to receive a secure OTP.">
@@ -148,18 +164,10 @@ function AuthPage() {
                       className="border-0 bg-transparent focus-visible:ring-0 shadow-none h-12 text-base tracking-wide"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground pt-1">
-                    We'll send a 6-digit code. Message rates may apply.
-                  </p>
+                  <p className="text-xs text-muted-foreground pt-1">We'll send a 6-digit code. Message rates may apply.</p>
                 </div>
-                <Button
-                  variant="hero"
-                  size="xl"
-                  className="w-full"
-                  disabled={loading}
-                  onClick={() => handleSendOtp()}
-                >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Send OTP <ArrowRight className="h-4 w-4" /></>}
+                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={() => handleSendOtp()}>
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Send OTP <ArrowRight className="h-4 w-4" /></>)}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
                   By continuing you agree to our <a className="text-primary hover:underline">Terms</a> and <a className="text-primary hover:underline">Privacy Policy</a>.
@@ -188,34 +196,27 @@ function AuthPage() {
                   </div>
                 )}
                 <div className="flex items-center justify-between text-sm">
-                  <button
-                    type="button"
-                    className="text-muted-foreground hover:text-foreground transition"
-                    onClick={() => setStep("mobile")}
-                  >
-                    Change number
-                  </button>
-                  <button
-                    type="button"
-                    disabled={resendIn > 0}
-                    onClick={() => handleSendOtp(true)}
-                    className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline"
-                  >
+                  <button type="button" className="text-muted-foreground hover:text-foreground transition" onClick={() => setStep("mobile")}>Change number</button>
+                  <button type="button" disabled={resendIn > 0} onClick={() => handleSendOtp(true)} className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline">
                     {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend OTP"}
                   </button>
                 </div>
                 <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={handleVerifyOtp}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (isNewUser ? "Verify & Continue" : "Verify & Sign in")}
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Continue"}
                 </Button>
               </StepShell>
             )}
 
-            {step === "details" && (
-              <DetailsStep key="details" onSubmit={handleDetails} />
-            )}
-
-            {step === "kyc" && (
-              <KycStep key="kyc" onSubmit={handleKyc} />
+            {step === "name" && (
+              <StepShell key="name" title="Complete your profile" subtitle="Just your name — you can add KYC details from Settings later.">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Full name</Label>
+                  <Input id="fullName" autoFocus placeholder="Rohan Sharma" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12" />
+                </div>
+                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={submitName}>
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Finish <ArrowRight className="h-4 w-4" /></>)}
+                </Button>
+              </StepShell>
             )}
           </AnimatePresence>
         </div>
@@ -230,19 +231,12 @@ function HeroPanel() {
       <div className="absolute inset-0 opacity-30 [background:radial-gradient(circle_at_20%_20%,white,transparent_40%),radial-gradient(circle_at_80%_60%,white,transparent_35%)]" />
       <div className="relative flex h-full flex-col justify-between p-14 text-white">
         <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur-md">
-            <Sparkles className="h-5 w-5" />
-          </div>
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur-md"><Sparkles className="h-5 w-5" /></div>
           <div className="text-lg font-semibold tracking-tight">Pay Solution</div>
         </div>
-
         <div className="max-w-lg space-y-6">
-          <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">
-            The premium fintech dashboard for modern payments.
-          </h1>
-          <p className="text-base text-white/80">
-            Recharge, BBPS, AEPS, DMT, Wallet, Settlements, and Commission — one beautiful platform. Secure by default with mobile OTP.
-          </p>
+          <h1 className="text-4xl font-semibold leading-tight text-white sm:text-5xl">The premium fintech dashboard for modern payments.</h1>
+          <p className="text-base text-white/80">Recharge, BBPS, AEPS, DMT, Wallet, Settlements, and Commission — one beautiful platform. Secure by default with mobile OTP.</p>
           <div className="grid grid-cols-2 gap-3">
             {[
               { icon: Wallet, label: "Instant Settlements" },
@@ -257,10 +251,7 @@ function HeroPanel() {
             ))}
           </div>
         </div>
-
-        <div className="text-xs text-white/60">
-          © {new Date().getFullYear()} Pay Solution. All rights reserved.
-        </div>
+        <div className="text-xs text-white/60">© {new Date().getFullYear()} Pay Solution. All rights reserved.</div>
       </div>
     </div>
   );
@@ -270,8 +261,7 @@ function StepIndicator({ step }: { step: Step }) {
   const steps: { key: Step; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "mobile", label: "Mobile", icon: Smartphone },
     { key: "otp", label: "OTP", icon: KeyRound },
-    { key: "details", label: "Details", icon: UserCircle2 },
-    { key: "kyc", label: "KYC", icon: FileCheck2 },
+    { key: "name", label: "Profile", icon: UserCircle2 },
   ];
   const activeIdx = steps.findIndex((s) => s.key === step);
   return (
@@ -281,20 +271,10 @@ function StepIndicator({ step }: { step: Step }) {
         const active = i === activeIdx;
         return (
           <div key={s.key} className="flex flex-1 items-center gap-2">
-            <div
-              className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition ${
-                active
-                  ? "border-primary bg-primary text-primary-foreground shadow-glow"
-                  : done
-                  ? "border-primary/40 bg-primary/10 text-primary"
-                  : "border-border bg-muted text-muted-foreground"
-              }`}
-            >
+            <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full border transition ${active ? "border-primary bg-primary text-primary-foreground shadow-glow" : done ? "border-primary/40 bg-primary/10 text-primary" : "border-border bg-muted text-muted-foreground"}`}>
               <s.icon className="h-4 w-4" />
             </div>
-            {i < steps.length - 1 && (
-              <div className={`h-0.5 flex-1 rounded-full transition ${done ? "bg-primary" : "bg-border"}`} />
-            )}
+            {i < steps.length - 1 && <div className={`h-0.5 flex-1 rounded-full transition ${done ? "bg-primary" : "bg-border"}`} />}
           </div>
         );
       })}
@@ -302,102 +282,14 @@ function StepIndicator({ step }: { step: Step }) {
   );
 }
 
-function StepShell({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: React.ReactNode;
-  children: React.ReactNode;
-}) {
+function StepShell({ title, subtitle, children }: { title: string; subtitle?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      transition={{ duration: 0.28, ease: "easeOut" }}
-      className="space-y-6"
-    >
+    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.28, ease: "easeOut" }} className="space-y-6">
       <div className="space-y-1.5">
         <h2 className="text-2xl font-semibold tracking-tight">{title}</h2>
         {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
       </div>
       <div className="space-y-5">{children}</div>
     </motion.div>
-  );
-}
-
-function DetailsStep({ onSubmit }: { onSubmit: (d: { fullName: string; email: string }) => void }) {
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-
-  const submit = () => {
-    if (fullName.trim().length < 2) return toast.error("Enter your full name");
-    onSubmit({ fullName: fullName.trim(), email: email.trim() });
-  };
-
-  return (
-    <StepShell title="Complete your profile" subtitle="Just a few details to personalize your account.">
-      <div className="space-y-2">
-        <Label htmlFor="fullName">Full name</Label>
-        <Input
-          id="fullName"
-          autoFocus
-          placeholder="Rohan Sharma"
-          value={fullName}
-          onChange={(e) => setFullName(e.target.value)}
-          className="h-12"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="email">Email <span className="text-muted-foreground">(optional)</span></Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="you@company.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="h-12"
-        />
-      </div>
-      <Button variant="hero" size="xl" className="w-full" onClick={submit}>
-        Continue to KYC <ArrowRight className="h-4 w-4" />
-      </Button>
-    </StepShell>
-  );
-}
-
-function KycStep({ onSubmit }: { onSubmit: () => void }) {
-  return (
-    <StepShell title="KYC verification" subtitle="Upload your documents to activate all services. You can also skip and complete this later from settings.">
-      <div className="grid gap-3">
-        {["Aadhaar card", "PAN card", "Selfie / Live photo"].map((doc) => (
-          <div
-            key={doc}
-            className="flex items-center justify-between rounded-xl border border-dashed border-border bg-card px-4 py-4 transition hover:border-primary/50 hover:bg-accent/40"
-          >
-            <div className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-gradient-primary text-primary-foreground">
-                <FileCheck2 className="h-5 w-5" />
-              </div>
-              <div>
-                <div className="text-sm font-medium">{doc}</div>
-                <div className="text-xs text-muted-foreground">JPG, PNG or PDF · Max 5MB</div>
-              </div>
-            </div>
-            <Button variant="outline" size="sm">Upload</Button>
-          </div>
-        ))}
-      </div>
-      <div className="flex gap-3">
-        <Button variant="outline" size="xl" className="flex-1" onClick={onSubmit}>
-          Skip for now
-        </Button>
-        <Button variant="hero" size="xl" className="flex-1" onClick={onSubmit}>
-          Submit KYC
-        </Button>
-      </div>
-    </StepShell>
   );
 }

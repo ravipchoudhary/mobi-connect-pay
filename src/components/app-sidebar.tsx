@@ -33,16 +33,13 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { useAuth } from "@/lib/auth-store";
+import { useSession } from "@/hooks/use-session";
 
 const groups: {
   label: string;
   items: { title: string; url: string; icon: React.ComponentType<{ className?: string }> }[];
 }[] = [
-  {
-    label: "Overview",
-    items: [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }],
-  },
+  { label: "Overview", items: [{ title: "Dashboard", url: "/dashboard", icon: LayoutDashboard }] },
   {
     label: "Services",
     items: [
@@ -89,7 +86,9 @@ const groups: {
 
 export function AppSidebar() {
   const pathname = useRouterState({ select: (r) => r.location.pathname });
-  const { user } = useAuth();
+  const { profile } = useSession();
+  const name = profile?.full_name || "User";
+  const initial = name[0]?.toUpperCase() ?? "U";
 
   return (
     <Sidebar collapsible="icon" className="border-r">
@@ -130,12 +129,10 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex items-center gap-3 px-2 py-1.5 group-data-[collapsible=icon]:justify-center">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">
-            {user?.fullName?.[0]?.toUpperCase() ?? "U"}
-          </div>
+          <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-primary text-primary-foreground text-sm font-semibold">{initial}</div>
           <div className="flex min-w-0 flex-col group-data-[collapsible=icon]:hidden">
-            <span className="truncate text-sm font-medium">{user?.fullName ?? "User"}</span>
-            <span className="truncate text-xs text-muted-foreground">+91 {user?.mobile}</span>
+            <span className="truncate text-sm font-medium">{name}</span>
+            <span className="truncate text-xs text-muted-foreground">+91 {profile?.mobile}</span>
           </div>
         </div>
       </SidebarFooter>
