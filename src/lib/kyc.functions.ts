@@ -54,18 +54,23 @@ export const submitKycForReview = createServerFn({ method: "POST" })
       .parse(raw),
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, string> = {
+    const patch = {
       full_name: data.full_name,
-      kyc_status: "pending",
+      kyc_status: "pending" as const,
+      pan_number: data.pan_number || null,
+      aadhaar_last4: data.aadhaar_last4 || null,
+      business_name: data.business_name || null,
+      address: data.address || null,
+      city: data.city || null,
+      state: data.state || null,
+      pincode: data.pincode || null,
+      gst_number: data.gst_number || null,
     };
-    for (const [k, v] of Object.entries(data)) {
-      if (k === "full_name") continue;
-      if (typeof v === "string" && v.length > 0) patch[k] = v;
-    }
     const { error } = await context.supabase.from("profiles").update(patch).eq("id", context.userId);
     if (error) throw new Error(error.message);
     return { ok: true as const };
   });
+
 
 /** Admin: approve or reject a user's KYC. */
 export const reviewKyc = createServerFn({ method: "POST" })
