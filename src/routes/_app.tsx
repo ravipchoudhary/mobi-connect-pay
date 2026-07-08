@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Bell, LogOut, Search, Sun, Moon } from "lucide-react";
 
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -14,8 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logout, useAuth } from "@/lib/auth-store";
-import { useState } from "react";
+import { signOut, useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
@@ -23,7 +22,7 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   const navigate = useNavigate();
-  const { user, ready, isAuthenticated } = useAuth();
+  const { ready, isAuthenticated, profile, primaryRole } = useSession();
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -42,7 +41,12 @@ function AppLayout() {
     );
   }
 
-  const initials = user?.fullName?.split(" ").map((s) => s[0]).join("").slice(0, 2).toUpperCase();
+  const initials = (profile?.full_name ?? "U")
+    .split(" ")
+    .map((s) => s[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
     <SidebarProvider>
@@ -70,18 +74,18 @@ function AppLayout() {
                 <DropdownMenuTrigger asChild>
                   <button className="ml-1 flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-1.5 transition hover:bg-accent">
                     <div className="grid h-7 w-7 place-items-center rounded-lg bg-gradient-primary text-xs font-semibold text-primary-foreground">
-                      {initials || "U"}
+                      {initials}
                     </div>
                     <div className="hidden text-left sm:block">
-                      <div className="text-xs font-medium leading-none">{user?.fullName}</div>
-                      <div className="text-[10px] text-muted-foreground">{user?.role.replace("_", " ")}</div>
+                      <div className="text-xs font-medium leading-none">{profile?.full_name || "Set your name"}</div>
+                      <div className="text-[10px] text-muted-foreground">{primaryRole?.replace("_", " ") ?? "user"}</div>
                     </div>
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuLabel>
-                    <div className="text-sm font-medium">{user?.fullName}</div>
-                    <div className="text-xs text-muted-foreground">+91 {user?.mobile}</div>
+                    <div className="text-sm font-medium">{profile?.full_name || "Set your name"}</div>
+                    <div className="text-xs text-muted-foreground">+91 {profile?.mobile}</div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate({ to: "/settings" })}>Settings</DropdownMenuItem>
@@ -89,8 +93,8 @@ function AppLayout() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-destructive focus:text-destructive"
-                    onClick={() => {
-                      logout();
+                    onClick={async () => {
+                      await signOut();
                       navigate({ to: "/auth" });
                     }}
                   >
