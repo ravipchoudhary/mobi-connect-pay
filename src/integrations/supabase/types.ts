@@ -718,7 +718,36 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
+      wallet_move: {
+        Args: {
+          _amount: number
+          _description: string
+          _direction: Database["public"]["Enums"]["ledger_direction"]
+          _kind: Database["public"]["Enums"]["wallet_kind"]
+          _reference_id: string
+          _reference_type: string
+          _user_id: string
+        }
+        Returns: {
+          amount: number
+          balance_after: number
+          created_at: string
+          description: string | null
+          direction: Database["public"]["Enums"]["ledger_direction"]
+          id: string
+          reference_id: string | null
+          reference_type: string | null
+          user_id: string
+          wallet_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "wallet_ledger"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role:
