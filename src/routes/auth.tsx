@@ -37,6 +37,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const send = useServerFn(sendMobileOtp);
   const verify = useServerFn(verifyMobileOtp);
+  const resolveUname = useServerFn(resolveUsernameEmail);
 
   const [step, setStep] = useState<Step>("mobile");
   const [mobile, setMobile] = useState("");
@@ -45,6 +46,8 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
