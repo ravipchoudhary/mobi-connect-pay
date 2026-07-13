@@ -245,6 +245,42 @@ function AuthPage() {
               </StepShell>
             )}
           </AnimatePresence>
+            </TabsContent>
+            <TabsContent value="username">
+              <StepShell
+                title="Sign in with username"
+                subtitle="For admin and staff accounts. Retailers should use Mobile OTP."
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="uname">Username</Label>
+                  <Input
+                    id="uname"
+                    autoComplete="username"
+                    placeholder="ravipchy"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pwd">Password</Label>
+                  <Input
+                    id="pwd"
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submitPassword()}
+                    className="h-12"
+                  />
+                </div>
+                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={submitPassword}>
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Sign in <ArrowRight className="h-4 w-4" /></>)}
+                </Button>
+              </StepShell>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>
