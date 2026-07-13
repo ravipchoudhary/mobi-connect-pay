@@ -22,6 +22,8 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { supabase } from "@/integrations/supabase/client";
 import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
+import { resolveUsernameEmail } from "@/lib/username.functions";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
@@ -35,6 +37,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const send = useServerFn(sendMobileOtp);
   const verify = useServerFn(verifyMobileOtp);
+  const resolveUname = useServerFn(resolveUsernameEmail);
 
   const [step, setStep] = useState<Step>("mobile");
   const [mobile, setMobile] = useState("");
@@ -43,6 +46,8 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -138,12 +143,35 @@ function AuthPage() {
     }
   };
 
+  const submitPassword = async () => {
+    if (username.trim().length < 2) return toast.error("Enter your username");
+    if (password.length < 6) return toast.error("Enter your password");
+    setLoading(true);
+    try {
+      const { email } = await resolveUname({ data: { username: username.trim() } });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error("Invalid username or password.");
+      toast.success("Welcome back!");
+      navigate({ to: "/dashboard" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-background lg:grid lg:grid-cols-[1.05fr_1fr]">
       <HeroPanel />
       <div className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-14">
         <div className="w-full max-w-md">
-          <StepIndicator step={step} />
+          <Tabs defaultValue="mobile" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="mobile">Mobile OTP</TabsTrigger>
+              <TabsTrigger value="username">Username</TabsTrigger>
+            </TabsList>
+            <TabsContent value="mobile">
+              <StepIndicator step={step} />
           <AnimatePresence mode="wait">
             {step === "mobile" && (
               <StepShell key="mobile" title="Sign in to Pay Solution" subtitle="Enter your mobile number to receive a secure OTP.">
@@ -217,6 +245,42 @@ function AuthPage() {
               </StepShell>
             )}
           </AnimatePresence>
+            </TabsContent>
+            <TabsContent value="username">
+              <StepShell
+                title="Sign in with username"
+                subtitle="For admin and staff accounts. Retailers should use Mobile OTP."
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="uname">Username</Label>
+                  <Input
+                    id="uname"
+                    autoComplete="username"
+                    placeholder="ravipchy"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pwd">Password</Label>
+                  <Input
+                    id="pwd"
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && submitPassword()}
+                    className="h-12"
+                  />
+                </div>
+                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={submitPassword}>
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Sign in <ArrowRight className="h-4 w-4" /></>)}
+                </Button>
+              </StepShell>
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

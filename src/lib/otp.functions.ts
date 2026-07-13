@@ -48,13 +48,44 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
       expires_at: new Date(Date.now() + OTP_TTL_MS).toISOString(),
     });
     if (error) throw new Error(error.message);
-    // TODO: send SMS via MSG91/Twilio when configured.
-    // SECURITY: never return the OTP code in production. It is only surfaced
-    // when an operator explicitly opts in by setting ALLOW_DEV_OTP="true"
-    // in the server environment (never enable this on a public deployment).
-    const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" && !process.env.SMS_PROVIDER;
-    return { ok: true as const, devOtp: allowDevOtp ? code : undefined };
+
+    // Send SMS via Twilio (through the Lovable connector gateway) when configured.
+    let smsSent = false;
+    const twilioKey = process.env.TWILIO_API_KEY;
+    const lovableKey = process.env.LOVABLE_API_KEY;
+    const fromNumber = process.env.TWILIO_FROM_NUMBER;
+    if (twilioKey && lovableKey && fromNumber) {
+      try {
+        const res = await fetch("https://connector-gateway.lovable.dev/twilio/Messages.json", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${lovableKey}`,
+            "X-Connection-Api-Key": twilioKey,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            To: `+91${data.mobile}`,
+            From: fromNumber,
+            Body: `Your Pay Solution verification code is ${code}. It expires in 5 minutes. Do not share this code with anyone.`,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          console.error(`Twilio send failed [${res.status}]: ${body}`);
+        } else {
+          smsSent = true;
+        }
+      } catch (e) {
+        console.error("Twilio send threw", e);
+      }
+    }
+
+    // SECURITY: never return the OTP code in production. Surfaced only when
+    // ALLOW_DEV_OTP="true" and no SMS was actually delivered.
+    const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" && !smsSent;
+    return { ok: true as const, devOtp: allowDevOtp ? code : undefined, smsSent };
   });
+
 
 /**
  * Verify OTP → mint a Supabase session for `mobile@paysol.local`.
