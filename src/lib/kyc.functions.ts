@@ -113,7 +113,11 @@ export const reviewKyc = createServerFn({ method: "POST" })
 export const listPendingKyc = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data: isAdmin } = await context.supabase.rpc("is_admin", { _user_id: context.userId });
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r) => ["super_admin", "auditor", "support"].includes(r.role));
     if (!isAdmin) return [];
     const { data } = await context.supabase
       .from("profiles")
