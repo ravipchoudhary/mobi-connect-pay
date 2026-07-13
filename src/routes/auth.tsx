@@ -22,6 +22,8 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { supabase } from "@/integrations/supabase/client";
 import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
+import { resolveUsernameEmail } from "@/lib/username.functions";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
