@@ -718,51 +718,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_primary_role: {
-        Args: { _user_id: string }
-        Returns: Database["public"]["Enums"]["app_role"]
-      }
-      has_role: {
-        Args: {
-          _role: Database["public"]["Enums"]["app_role"]
-          _user_id: string
-        }
-        Returns: boolean
-      }
-      is_admin: { Args: { _user_id: string }; Returns: boolean }
-      is_descendant_of: {
-        Args: { _ancestor: string; _child: string }
-        Returns: boolean
-      }
-      wallet_move: {
-        Args: {
-          _amount: number
-          _description: string
-          _direction: Database["public"]["Enums"]["ledger_direction"]
-          _kind: Database["public"]["Enums"]["wallet_kind"]
-          _reference_id: string
-          _reference_type: string
-          _user_id: string
-        }
-        Returns: {
-          amount: number
-          balance_after: number
-          created_at: string
-          description: string | null
-          direction: Database["public"]["Enums"]["ledger_direction"]
-          id: string
-          reference_id: string | null
-          reference_type: string | null
-          user_id: string
-          wallet_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "wallet_ledger"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      [_ in never]: never
     }
     Enums: {
       app_role:
