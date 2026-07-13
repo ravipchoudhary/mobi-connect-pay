@@ -85,8 +85,12 @@ export const reviewKyc = createServerFn({ method: "POST" })
       .parse(raw),
   )
   .handler(async ({ data, context }) => {
-    // Verify admin
-    const { data: isAdmin } = await context.supabase.rpc("is_admin", { _user_id: context.userId });
+    // Verify admin via user_roles (readable by the user for own rows via RLS)
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r) => ["super_admin", "auditor", "support"].includes(r.role));
     if (!isAdmin) throw new Error("Forbidden");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const updates = [
