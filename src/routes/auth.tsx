@@ -143,12 +143,35 @@ function AuthPage() {
     }
   };
 
+  const submitPassword = async () => {
+    if (username.trim().length < 2) return toast.error("Enter your username");
+    if (password.length < 6) return toast.error("Enter your password");
+    setLoading(true);
+    try {
+      const { email } = await resolveUname({ data: { username: username.trim() } });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw new Error("Invalid username or password.");
+      toast.success("Welcome back!");
+      navigate({ to: "/dashboard" });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full bg-background lg:grid lg:grid-cols-[1.05fr_1fr]">
       <HeroPanel />
       <div className="flex items-center justify-center px-6 py-12 sm:px-10 lg:px-14">
         <div className="w-full max-w-md">
-          <StepIndicator step={step} />
+          <Tabs defaultValue="mobile" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="mobile">Mobile OTP</TabsTrigger>
+              <TabsTrigger value="username">Username</TabsTrigger>
+            </TabsList>
+            <TabsContent value="mobile">
+              <StepIndicator step={step} />
           <AnimatePresence mode="wait">
             {step === "mobile" && (
               <StepShell key="mobile" title="Sign in to Pay Solution" subtitle="Enter your mobile number to receive a secure OTP.">
