@@ -51,8 +51,11 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
     // TODO: send SMS via MSG91/Twilio when configured.
-    const devMode = !process.env.SMS_PROVIDER;
-    return { ok: true as const, devOtp: devMode ? code : undefined };
+    // SECURITY: never return the OTP code in production. It is only surfaced
+    // when an operator explicitly opts in by setting ALLOW_DEV_OTP="true"
+    // in the server environment (never enable this on a public deployment).
+    const allowDevOtp = process.env.ALLOW_DEV_OTP === "true" && !process.env.SMS_PROVIDER;
+    return { ok: true as const, devOtp: allowDevOtp ? code : undefined };
   });
 
 /**

@@ -70,22 +70,44 @@ export const transferBetweenOwnWallets = createServerFn({ method: "POST" })
     return { ok: true as const };
   });
 
-/** Admin/dev helper: top up the current user's main wallet. */
+/**
+ * Admin-initiated wallet credit. Regular users cannot self-credit — a real
+ * payment gateway must call an authenticated webhook that verifies a captured
+ * payment before invoking this function. This admin path exists only so
+ * super_admins/support can settle reconciliation cases manually.
+ */
 export const requestWalletTopup = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw) =>
-    z.object({ amount: z.number().positive().max(500_000) }).parse(raw),
+    z
+      .object({
+        amount: z.number().positive().max(500_000),
+        targetUserId: z.string().uuid().optional(),
+      })
+      .parse(raw),
   )
   .handler(async ({ data, context }) => {
+    // Verify caller is an admin (super_admin/support/auditor).
+    const { data: roles } = await context.supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", context.userId);
+    const isAdmin = (roles ?? []).some((r) => ["super_admin", "support"].includes(r.role));
+    if (!isAdmin) {
+      throw new Error(
+        "Wallet top-up requires a verified payment. Contact your administrator or complete the payment flow.",
+      );
+    }
+    const userId = data.targetUserId ?? context.userId;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const res = await supabaseAdmin.rpc("wallet_move", {
-      _user_id: context.userId,
+      _user_id: userId,
       _kind: "main",
       _direction: "credit",
       _amount: data.amount,
-      _reference_type: "topup",
+      _reference_type: "admin_topup",
       _reference_id: crypto.randomUUID(),
-      _description: "Wallet top-up (dev)",
+      _description: `Admin credit by ${context.userId}`,
     });
     if (res.error) throw new Error(res.error.message);
     return { ok: true as const };

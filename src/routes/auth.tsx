@@ -65,9 +65,7 @@ function AuthPage() {
       setDevOtp(res.devOtp ?? null);
       setResendIn(30);
       if (!isResend) setStep("otp");
-      toast.success(`OTP sent to +91 ${mobile}`, {
-        description: res.devOtp ? `Dev preview: ${res.devOtp}` : undefined,
-      });
+      toast.success(`OTP sent to +91 ${mobile}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send OTP");
     } finally {
