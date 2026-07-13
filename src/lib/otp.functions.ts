@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { createHash } from "crypto";
 
 const MOBILE_RE = /^[6-9]\d{9}$/;
 const OTP_TTL_MS = 5 * 60_000;
@@ -11,9 +12,6 @@ function makeEmail(mobile: string) {
 }
 
 function sha256Hex(input: string) {
-  // Node/Workers-safe hash.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { createHash } = require("crypto") as typeof import("crypto");
   return createHash("sha256").update(input).digest("hex");
 }
 
