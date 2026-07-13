@@ -170,7 +170,7 @@ function TopUpDialog() {
           <div className="space-y-2">
             <Label htmlFor="topup-amt">Amount (₹)</Label>
             <Input id="topup-amt" type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} />
-            <p className="text-xs text-muted-foreground">Dev mode: credits your main wallet instantly. Wire a real gateway from Settings → API.</p>
+            <p className="text-xs text-muted-foreground">Top-ups require a completed payment. If your payment doesn't reflect automatically, contact support.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             {[500, 1000, 5000, 10000].map((p) => (
