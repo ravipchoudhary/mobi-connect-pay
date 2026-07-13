@@ -349,6 +349,7 @@ export type Database = {
           state: string | null
           status: Database["public"]["Enums"]["user_status"]
           updated_at: string
+          username: string | null
         }
         Insert: {
           aadhaar_last4?: string | null
@@ -370,6 +371,7 @@ export type Database = {
           state?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
+          username?: string | null
         }
         Update: {
           aadhaar_last4?: string | null
@@ -391,6 +393,7 @@ export type Database = {
           state?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
+          username?: string | null
         }
         Relationships: [
           {
