@@ -24,6 +24,20 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ mobile: z.string().regex(MOBILE_RE) }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Enforce "admin creates users" — reject unknown mobiles.
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("id, status")
+      .eq("mobile", data.mobile)
+      .maybeSingle();
+    if (!prof) {
+      throw new Error("This mobile is not registered. Ask your distributor/admin to create your account.");
+    }
+    if (prof.status !== "active") {
+      throw new Error("Account is inactive. Contact your administrator.");
+    }
+
     // Rate-limit resend
     const { data: recent } = await supabaseAdmin
       .from("mobile_otps")
@@ -40,6 +54,7 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
         throw new Error(`Please wait ${wait}s before requesting a new OTP.`);
       }
     }
+
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = sha256Hex(`${data.mobile}:${code}`);
     const { error } = await supabaseAdmin.from("mobile_otps").insert({
@@ -132,25 +147,19 @@ export const verifyMobileOtp = createServerFn({ method: "POST" })
     // Consume
     await supabaseAdmin.from("mobile_otps").update({ consumed_at: new Date().toISOString() }).eq("id", rec.id);
 
-    // Find or create the auth user tied to this mobile.
-    const email = makeEmail(data.mobile);
-    const { data: found } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    let userId = found?.users.find((u) => u.email === email)?.id;
-    if (!userId) {
-      const created = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        phone: `+91${data.mobile}`,
-        user_metadata: { mobile: data.mobile, full_name: data.fullName ?? "" },
-      });
-      if (created.error) throw new Error(created.error.message);
-      userId = created.data.user!.id;
-    } else if (data.fullName) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ full_name: data.fullName })
-        .eq("id", userId);
+    // Find the auth user tied to this mobile. No auto-create — accounts
+    // must be provisioned by an admin/distributor first.
+    const { data: profByMobile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email")
+      .eq("mobile", data.mobile)
+      .maybeSingle();
+    if (!profByMobile) {
+      throw new Error("This mobile is not registered. Ask your distributor/admin to create your account.");
     }
+    const email = profByMobile.email ?? makeEmail(data.mobile);
+    const userId = profByMobile.id;
+
 
     // Update last_login_at
     await supabaseAdmin.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", userId);
