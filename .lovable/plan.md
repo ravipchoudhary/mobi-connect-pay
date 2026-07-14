@@ -1,42 +1,49 @@
-## Reality check
+# Enterprise B2B Fintech Upgrade Plan
 
-The spec asks for a full production BBPS/AEPS/DMT/Recharge platform with real provider integrations, Node/Express + Prisma + Postgres + Redis + S3, deployed to Vercel + Railway. Lovable builds a single **TanStack Start** app on **Lovable Cloud** (Postgres + auth + storage + edge functions). A few hard constraints up front:
+Your request is enormous — a full Spice Money / PayNearby clone touches ~30+ modules, 6 dashboards, real payment/AEPS/BBPS/travel APIs, KYC, settlement, and RBAC. That is many weeks of work and thousands of lines of code. I can't ship it all in one turn without producing broken, half-wired screens — exactly what you asked me to avoid ("no placeholder pages").
 
-- **No Next.js + separate Express backend.** One TanStack Start app; server logic goes in server functions / server routes.
-- **No real BBPS / AEPS / DMT / Recharge.** Those require NPCI-licensed aggregator contracts (Eko, PayNearby, Setu, Cashfree BBPS, etc.), corporate KYC, and settlement bank accounts. I can't sign those on your behalf. I'll build the full UI + workflow + ledger and wire adapters so real API keys drop in later.
-- **Real SMS OTP** needs a paid provider (MSG91 / Twilio / GatewayAPI). Until keys are added, OTP is shown on-screen for testing.
-- Scope is ~20 modules. I'll ship in phases, not in one turn.
+I'll ship it in **focused, fully-working phases**. Each phase is production-quality, connected to real data via Lovable Cloud, and reviewable on its own. Please confirm the phase order (or reshuffle) and I'll start immediately.
 
-## What's already built
+---
 
-Auth shell (Mobile+OTP, mock), sidebar + topbar layout, dashboard skeleton, 17 module route placeholders, design tokens.
+## Phase 1 — Auth hardening & hierarchy (foundation)
+- Remove public sign-up route entirely (already partly done — enforce `disable_signup` in Cloud auth).
+- Finalize the two login tabs (Mobile+OTP, Username+Password) already scaffolded — polish UI, add "Remember me", forgot/reset password flow (email via Resend or Cloud email templates), device+login history tables + list UI.
+- User-hierarchy enforcement: `parent_id` on `profiles`, RLS + `has_role` policies so each tier can only create the tier directly below.
+- Admin "Create User" screen (Super Admin → MD → Distributor → Retailer → Agent) with role-gated forms.
 
-## Proposed phased build
+## Phase 2 — Dashboards (Retailer, Distributor, Admin)
+- Redesign `_app.dashboard.tsx` with role-aware panels: wallet, commission, settlement, today/month business, revenue chart (recharts), notifications, offers banner, quick actions.
+- Spice-Money-style **service grid** for retailers — colorful rounded icons, hover animation, pinned/favorites (stored per-user in a `user_service_prefs` table).
+- Distributor: retailer list, KYC approvals queue, wallet requests, growth chart.
+- Admin: live txn stream, API status, revenue, user counts.
 
-### Phase 1 — Foundation (this batch)
-1. Enable **Lovable Cloud** (Postgres, auth, storage, edge functions).
-2. Schema: `profiles`, `user_roles` (7-role enum + `has_role()` SECURITY DEFINER), `wallets` (main/commission/hold), `wallet_ledger`, `transactions`, `kyc_documents`, `tickets`, `audit_logs`, `notifications`, `commissions`, `settlements`, `api_configs`, `operators`, `beneficiaries`.
-3. RLS everywhere + GRANTs; hierarchy scoping via `parent_id` closure.
-4. Real Mobile+OTP via Supabase phone auth (needs SMS provider secret) — falls back to dev OTP until keys added.
-5. Admin-only user creation server functions enforcing hierarchy (Super Admin → MD → Distributor → Retailer → Agent).
+## Phase 3 — Wallet, Commission, Settlement, KYC (real flows)
+Upgrade the existing modules end-to-end: wallet ledger UI, commission plans CRUD, settlement requests + approval workflow, KYC document upload (existing `kyc-docs` bucket) with reviewer queue.
 
-### Phase 2 — Money core
-Wallet (3 sub-wallets, ledger, transfer, statement, PDF/Excel export), KYC (upload to Cloud storage, admin approve/reject), Commission engine, Settlement.
+## Phase 4 — Service modules (stubs → working forms)
+Real forms + validation + transaction records for: AEPS, mATM, BBPS, DMT, Recharge, FASTag, Electricity/Gas/Water/Broadband, Aadhaar Pay, UPI QR, PAN, CMS.
+Each writes to `transactions` and debits wallet through the existing `wallet_move` RPC. **API integrations are stubbed behind a provider adapter interface** — no real BBPS/AEPS API keys exist yet, so I mock the provider responses deterministically and expose a single place to wire real APIs later. I'll be explicit about which are live vs mocked; no "Coming Soon" screens.
 
-### Phase 3 — Services (UI + provider adapter pattern, mock provider until real keys)
-Recharge (Mobile/DTH/FASTag + operator detect), BBPS (all 14 categories: fetch/validate/pay/requery/complaint), DMT (beneficiary + IMPS/NEFT + OTP confirm), AEPS (UI + biometric device stub — real AEPS needs certified RD service SDK).
+## Phase 5 — Travel booking
+Bus (RedBus/AbhiBus), Train, Flight, Hotel search + booking UI, booking history, cancellation, PNR, seat selection. Same adapter pattern — mocked provider until you connect real APIs.
 
-### Phase 4 — Ops
-Reports (daily/weekly/monthly, PDF/Excel/CSV, scheduled email), Receipts (branded PDF + QR), Tickets (SLA, escalation), Audit & Activity logs, Notifications, RBAC matrix UI, Settings (SMS/Email/Payment gateway config, GST, API keys).
+## Phase 6 — Admin infra
+API config screen, role/permission management UI, audit + activity logs viewers, support ticket workflow, notification center, dark/light theme toggle refinement, skeleton loaders across the app.
 
-### Phase 5 — Hardening
-Rate limiting on server routes, duplicate-txn idempotency keys, device/IP tracking, security scan, dark/light polish, table primitives (search/sort/filter/pagination/bulk export) applied everywhere.
+---
 
-## What I need from you before Phase 1
+## Technical notes
+- Stack stays as-is: TanStack Start + Lovable Cloud + shadcn + Tailwind. No routing changes; every existing route is upgraded in place.
+- Provider adapters live in `src/lib/providers/*.ts` (bbps, aeps, dmt, travel) — each exports a typed interface so real APIs plug in via `standard_connectors` later.
+- All new tables ship with GRANT + RLS in the same migration.
+- Password login already wired; SMS OTP falls back to dev OTP until Twilio/MSG91 secrets are added.
 
-1. **Confirm Lovable Cloud** (Postgres + auth + storage + edge functions replaces your Next+Express+Prisma+Redis+S3 stack). Yes/No.
-2. **SMS provider for real OTP** — MSG91, Twilio, GatewayAPI, or "keep dev OTP for now."
-3. **BBPS/Recharge/AEPS/DMT aggregator** — which one do you have (or plan to get) a contract with? I'll build the adapter to its API shape. If none yet, I'll ship a mock provider with the exact same interface so switching is a config change.
-4. **Priority order** if you want a different phase order (e.g. "Wallet + Recharge first, BBPS later").
+---
 
-Once you answer, I start Phase 1 immediately.
+## What I need from you
+1. **Confirm the phase order above**, or tell me to prioritize differently (e.g. "start with retailer service grid").
+2. **Password reset channel**: email via Lovable-managed auth emails (I can scaffold), or SMS OTP-based reset?
+3. **Real provider APIs**: do you have accounts/keys for BBPS/AEPS/DMT/RedBus, or should everything use the mock adapter for now (fully functional UI, mock backend)?
+
+Reply with the phase(s) to start and I'll begin implementation this turn.
