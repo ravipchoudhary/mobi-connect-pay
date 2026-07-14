@@ -21,19 +21,6 @@ const CREATABLE_BY: Record<AppRole, AppRole[]> = {
 
 const MOBILE_RE = /^[6-9]\d{9}$/;
 
-async function getCallerRoles(supabase: ReturnType<typeof getSupabase>, userId: string): Promise<AppRole[]> {
-  const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
-  return ((data ?? []) as { role: AppRole }[]).map((r) => r.role);
-}
-// helper type shim
-function getSupabase() {
-  // dummy — actual client from ctx
-  return null as unknown as {
-    from: (t: string) => {
-      select: (c: string) => { eq: (k: string, v: unknown) => Promise<{ data: { role: AppRole }[] | null }> };
-    };
-  };
-}
 
 /**
  * Create a downline user. Role hierarchy enforced server-side.
