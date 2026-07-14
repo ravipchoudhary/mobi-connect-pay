@@ -147,25 +147,19 @@ export const verifyMobileOtp = createServerFn({ method: "POST" })
     // Consume
     await supabaseAdmin.from("mobile_otps").update({ consumed_at: new Date().toISOString() }).eq("id", rec.id);
 
-    // Find or create the auth user tied to this mobile.
-    const email = makeEmail(data.mobile);
-    const { data: found } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 200 });
-    let userId = found?.users.find((u) => u.email === email)?.id;
-    if (!userId) {
-      const created = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        phone: `+91${data.mobile}`,
-        user_metadata: { mobile: data.mobile, full_name: data.fullName ?? "" },
-      });
-      if (created.error) throw new Error(created.error.message);
-      userId = created.data.user!.id;
-    } else if (data.fullName) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ full_name: data.fullName })
-        .eq("id", userId);
+    // Find the auth user tied to this mobile. No auto-create — accounts
+    // must be provisioned by an admin/distributor first.
+    const { data: profByMobile } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email")
+      .eq("mobile", data.mobile)
+      .maybeSingle();
+    if (!profByMobile) {
+      throw new Error("This mobile is not registered. Ask your distributor/admin to create your account.");
     }
+    const email = profByMobile.email ?? makeEmail(data.mobile);
+    const userId = profByMobile.id;
+
 
     // Update last_login_at
     await supabaseAdmin.from("profiles").update({ last_login_at: new Date().toISOString() }).eq("id", userId);
