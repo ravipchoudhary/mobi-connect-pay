@@ -181,9 +181,10 @@ export const setUserStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((raw) =>
     z
-      .object({ userId: z.string().uuid(), status: z.enum(["active", "suspended", "pending"]) })
+      .object({ userId: z.string().uuid(), status: z.enum(["active", "suspended", "inactive"]) })
       .parse(raw),
   )
+
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     // Verify the target is under the caller, unless super_admin
