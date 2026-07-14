@@ -24,6 +24,20 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
   .inputValidator((raw) => z.object({ mobile: z.string().regex(MOBILE_RE) }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    // Enforce "admin creates users" — reject unknown mobiles.
+    const { data: prof } = await supabaseAdmin
+      .from("profiles")
+      .select("id, status")
+      .eq("mobile", data.mobile)
+      .maybeSingle();
+    if (!prof) {
+      throw new Error("This mobile is not registered. Ask your distributor/admin to create your account.");
+    }
+    if (prof.status !== "active") {
+      throw new Error("Account is inactive. Contact your administrator.");
+    }
+
     // Rate-limit resend
     const { data: recent } = await supabaseAdmin
       .from("mobile_otps")
@@ -40,6 +54,7 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
         throw new Error(`Please wait ${wait}s before requesting a new OTP.`);
       }
     }
+
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const codeHash = sha256Hex(`${data.mobile}:${code}`);
     const { error } = await supabaseAdmin.from("mobile_otps").insert({
