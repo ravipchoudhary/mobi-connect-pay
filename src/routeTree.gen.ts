@@ -22,8 +22,10 @@ import { Route as AppReportsRouteImport } from './routes/_app.reports'
 import { Route as AppRechargeRouteImport } from './routes/_app.recharge'
 import { Route as AppNotificationsRouteImport } from './routes/_app.notifications'
 import { Route as AppKycRouteImport } from './routes/_app.kyc'
+import { Route as AppDmt2RouteImport } from './routes/_app.dmt2'
 import { Route as AppDmtRouteImport } from './routes/_app.dmt'
 import { Route as AppDashboardRouteImport } from './routes/_app.dashboard'
+import { Route as AppCreditRetailerRouteImport } from './routes/_app.credit-retailer'
 import { Route as AppCommissionRouteImport } from './routes/_app.commission'
 import { Route as AppBbpsRouteImport } from './routes/_app.bbps'
 import { Route as AppAuditLogsRouteImport } from './routes/_app.audit-logs'
@@ -95,6 +97,11 @@ const AppKycRoute = AppKycRouteImport.update({
   path: '/kyc',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDmt2Route = AppDmt2RouteImport.update({
+  id: '/dmt2',
+  path: '/dmt2',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDmtRoute = AppDmtRouteImport.update({
   id: '/dmt',
   path: '/dmt',
@@ -103,6 +110,11 @@ const AppDmtRoute = AppDmtRouteImport.update({
 const AppDashboardRoute = AppDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCreditRetailerRoute = AppCreditRetailerRouteImport.update({
+  id: '/credit-retailer',
+  path: '/credit-retailer',
   getParentRoute: () => AppRoute,
 } as any)
 const AppCommissionRoute = AppCommissionRouteImport.update({
@@ -145,8 +157,10 @@ export interface FileRoutesByFullPath {
   '/audit-logs': typeof AppAuditLogsRoute
   '/bbps': typeof AppBbpsRoute
   '/commission': typeof AppCommissionRoute
+  '/credit-retailer': typeof AppCreditRetailerRoute
   '/dashboard': typeof AppDashboardRoute
   '/dmt': typeof AppDmtRoute
+  '/dmt2': typeof AppDmt2Route
   '/kyc': typeof AppKycRoute
   '/notifications': typeof AppNotificationsRoute
   '/recharge': typeof AppRechargeRoute
@@ -167,8 +181,10 @@ export interface FileRoutesByTo {
   '/audit-logs': typeof AppAuditLogsRoute
   '/bbps': typeof AppBbpsRoute
   '/commission': typeof AppCommissionRoute
+  '/credit-retailer': typeof AppCreditRetailerRoute
   '/dashboard': typeof AppDashboardRoute
   '/dmt': typeof AppDmtRoute
+  '/dmt2': typeof AppDmt2Route
   '/kyc': typeof AppKycRoute
   '/notifications': typeof AppNotificationsRoute
   '/recharge': typeof AppRechargeRoute
@@ -191,8 +207,10 @@ export interface FileRoutesById {
   '/_app/audit-logs': typeof AppAuditLogsRoute
   '/_app/bbps': typeof AppBbpsRoute
   '/_app/commission': typeof AppCommissionRoute
+  '/_app/credit-retailer': typeof AppCreditRetailerRoute
   '/_app/dashboard': typeof AppDashboardRoute
   '/_app/dmt': typeof AppDmtRoute
+  '/_app/dmt2': typeof AppDmt2Route
   '/_app/kyc': typeof AppKycRoute
   '/_app/notifications': typeof AppNotificationsRoute
   '/_app/recharge': typeof AppRechargeRoute
@@ -215,8 +233,10 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/bbps'
     | '/commission'
+    | '/credit-retailer'
     | '/dashboard'
     | '/dmt'
+    | '/dmt2'
     | '/kyc'
     | '/notifications'
     | '/recharge'
@@ -237,8 +257,10 @@ export interface FileRouteTypes {
     | '/audit-logs'
     | '/bbps'
     | '/commission'
+    | '/credit-retailer'
     | '/dashboard'
     | '/dmt'
+    | '/dmt2'
     | '/kyc'
     | '/notifications'
     | '/recharge'
@@ -260,8 +282,10 @@ export interface FileRouteTypes {
     | '/_app/audit-logs'
     | '/_app/bbps'
     | '/_app/commission'
+    | '/_app/credit-retailer'
     | '/_app/dashboard'
     | '/_app/dmt'
+    | '/_app/dmt2'
     | '/_app/kyc'
     | '/_app/notifications'
     | '/_app/recharge'
@@ -373,6 +397,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppKycRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/dmt2': {
+      id: '/_app/dmt2'
+      path: '/dmt2'
+      fullPath: '/dmt2'
+      preLoaderRoute: typeof AppDmt2RouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/dmt': {
       id: '/_app/dmt'
       path: '/dmt'
@@ -385,6 +416,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AppDashboardRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/credit-retailer': {
+      id: '/_app/credit-retailer'
+      path: '/credit-retailer'
+      fullPath: '/credit-retailer'
+      preLoaderRoute: typeof AppCreditRetailerRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/commission': {
@@ -439,8 +477,10 @@ interface AppRouteChildren {
   AppAuditLogsRoute: typeof AppAuditLogsRoute
   AppBbpsRoute: typeof AppBbpsRoute
   AppCommissionRoute: typeof AppCommissionRoute
+  AppCreditRetailerRoute: typeof AppCreditRetailerRoute
   AppDashboardRoute: typeof AppDashboardRoute
   AppDmtRoute: typeof AppDmtRoute
+  AppDmt2Route: typeof AppDmt2Route
   AppKycRoute: typeof AppKycRoute
   AppNotificationsRoute: typeof AppNotificationsRoute
   AppRechargeRoute: typeof AppRechargeRoute
@@ -460,8 +500,10 @@ const AppRouteChildren: AppRouteChildren = {
   AppAuditLogsRoute: AppAuditLogsRoute,
   AppBbpsRoute: AppBbpsRoute,
   AppCommissionRoute: AppCommissionRoute,
+  AppCreditRetailerRoute: AppCreditRetailerRoute,
   AppDashboardRoute: AppDashboardRoute,
   AppDmtRoute: AppDmtRoute,
+  AppDmt2Route: AppDmt2Route,
   AppKycRoute: AppKycRoute,
   AppNotificationsRoute: AppNotificationsRoute,
   AppRechargeRoute: AppRechargeRoute,
@@ -484,3 +526,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

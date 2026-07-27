@@ -21,7 +21,7 @@ function sha256Hex(input: string) {
  * push the code over SMS from within the .handler().
  */
 export const sendMobileOtp = createServerFn({ method: "POST" })
-  .inputValidator((raw) => z.object({ mobile: z.string().regex(MOBILE_RE) }).parse(raw))
+  .validator((raw) => z.object({ mobile: z.string().regex(MOBILE_RE) }).parse(raw))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
@@ -109,7 +109,7 @@ export const sendMobileOtp = createServerFn({ method: "POST" })
  * the session in the browser.
  */
 export const verifyMobileOtp = createServerFn({ method: "POST" })
-  .inputValidator((raw) =>
+  .validator((raw) =>
     z
       .object({
         mobile: z.string().regex(MOBILE_RE),

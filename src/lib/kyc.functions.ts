@@ -17,7 +17,7 @@ export const listMyKyc = createServerFn({ method: "GET" })
 
 export const recordKycDoc = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw) =>
+  .validator((raw) =>
     z
       .object({
         doc_type: z.enum(DOC_TYPES),
@@ -38,7 +38,7 @@ export const recordKycDoc = createServerFn({ method: "POST" })
 
 export const submitKycForReview = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw) =>
+  .validator((raw) =>
     z
       .object({
         full_name: z.string().trim().min(2).max(80),
@@ -75,7 +75,7 @@ export const submitKycForReview = createServerFn({ method: "POST" })
 /** Admin: approve or reject a user's KYC. */
 export const reviewKyc = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((raw) =>
+  .validator((raw) =>
     z
       .object({
         user_id: z.string().uuid(),

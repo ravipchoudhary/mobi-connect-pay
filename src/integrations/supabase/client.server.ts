@@ -4,9 +4,34 @@
 // For user-authenticated queries (with RLS), use the auth middleware instead.
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
+}
+
+function loadDotEnvIfNeeded() {
+  const envPath = resolve(process.cwd(), '.env');
+  if (!existsSync(envPath)) return;
+
+  const envText = readFileSync(envPath, 'utf8');
+  for (const rawLine of envText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+    const key = match[1];
+    let value = match[2] ?? '';
+    if (value.startsWith('"') && value.endsWith('"')) {
+      value = value.slice(1, -1);
+    } else if (value.startsWith("'") && value.endsWith("'")) {
+      value = value.slice(1, -1);
+    }
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
 }
 
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
@@ -29,23 +54,71 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
   };
 }
 
-function createSupabaseAdminClient() {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+function getProjectRefFromUrl(url: string): string | undefined {
+  try {
+    const host = new URL(url).hostname;
+    return host.replace(/\.supabase\.co$/i, '').replace(/\.supabase\.in$/i, '');
+  } catch {
+    return undefined;
+  }
+}
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_SERVICE_ROLE_KEY ? ['SUPABASE_SERVICE_ROLE_KEY'] : []),
-    ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Connect Supabase in Lovable Cloud.`;
+function getKeyProjectRef(key: string): string | undefined {
+  if (!key.startsWith('eyJ')) return undefined;
+  try {
+    const payload = key.split('.')[1];
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), '=');
+    const decoded = Buffer.from(padded, 'base64').toString('utf8');
+    const parsed = JSON.parse(decoded) as { ref?: string };
+    return parsed.ref;
+  } catch {
+    return undefined;
+  }
+}
+
+function createSupabaseAdminClient() {
+  loadDotEnvIfNeeded();
+  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || viteEnv?.VITE_SUPABASE_URL;
+  const SUPABASE_SERVICE_ROLE_KEY = [
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    process.env.SUPABASE_SERVICE_ROLE_SECRET,
+    process.env.SUPABASE_SECRET_KEY,
+    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY,
+  ].find((value): value is string => Boolean(value && value.trim()));
+
+  if (!SUPABASE_URL) {
+    const message = 'Missing Supabase environment variable(s): SUPABASE_URL. Connect Supabase in Lovable Cloud.';
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
 
-  return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  if (!SUPABASE_SERVICE_ROLE_KEY) {
+    const message = 'SUPABASE_SERVICE_ROLE_KEY is not configured. Create a .env with SUPABASE_SERVICE_ROLE_KEY or set it in the shell.';
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  if (SUPABASE_SERVICE_ROLE_KEY.startsWith('sb_publishable_')) {
+    const message = 'A publishable Supabase key was provided for admin access. Set SUPABASE_SERVICE_ROLE_KEY to the service-role secret.';
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  const keyProjectRef = getKeyProjectRef(SUPABASE_SERVICE_ROLE_KEY);
+  const urlProjectRef = getProjectRefFromUrl(SUPABASE_URL);
+  if (keyProjectRef && urlProjectRef && keyProjectRef !== urlProjectRef) {
+    const message = `Supabase key project mismatch: key belongs to ${keyProjectRef} but URL points to ${urlProjectRef}. Use the matching service-role key for this project.`;
+    console.error(`[Supabase] ${message}`);
+    throw new Error(message);
+  }
+
+  const keyToUse = SUPABASE_SERVICE_ROLE_KEY;
+
+  return createClient<Database>(SUPABASE_URL, keyToUse, {
     global: {
-      fetch: createSupabaseFetch(SUPABASE_SERVICE_ROLE_KEY),
+      fetch: createSupabaseFetch(keyToUse),
     },
     auth: {
       storage: undefined,

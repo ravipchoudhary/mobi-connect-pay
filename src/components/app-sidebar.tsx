@@ -14,6 +14,7 @@ import {
   LifeBuoy,
   Bell,
   Settings,
+  Banknote,
   ScrollText,
   Activity,
   KeyRound,
@@ -47,12 +48,14 @@ const groups: {
       { title: "BBPS", url: "/bbps", icon: Receipt },
       { title: "AEPS", url: "/aeps", icon: Fingerprint },
       { title: "DMT", url: "/dmt", icon: Send },
+      { title: "DMT 2", url: "/dmt2", icon: Banknote },
     ],
   },
   {
     label: "Money",
     items: [
       { title: "Wallet", url: "/wallet", icon: Wallet },
+      { title: "Credit Retailer", url: "/credit-retailer", icon: Banknote },
       { title: "Settlement", url: "/settlement", icon: Landmark },
       { title: "Commission", url: "/commission", icon: BadgePercent },
     ],

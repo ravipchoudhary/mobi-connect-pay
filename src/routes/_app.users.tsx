@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
+import { useSession } from "@/hooks/use-session";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -84,6 +85,7 @@ const ROLE_LABEL: Record<string, string> = {
 function UsersPage() {
   const list = useServerFn(listDownlineUsers);
   const qc = useQueryClient();
+  const { primaryRole } = useSession();
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -104,6 +106,8 @@ function UsersPage() {
   });
 
   const creatable = usersQuery.data?.creatableRoles ?? [];
+  const canCreate = primaryRole === "super_admin" || creatable.length > 0;
+  const effectiveCreatableRoles = primaryRole === "super_admin" ? ["master_distributor", "distributor", "retailer", "agent", "super_admin"] : creatable;
 
   return (
     <div className="p-6 space-y-6">
@@ -138,7 +142,7 @@ function UsersPage() {
               <Button
                 variant="default"
                 size="lg"
-                disabled={creatable.length === 0}
+                disabled={!canCreate}
                 className="gap-2"
               >
                 <UserPlus className="h-4 w-4" />
@@ -146,7 +150,7 @@ function UsersPage() {
               </Button>
             </DialogTrigger>
             <CreateUserDialog
-              creatableRoles={creatable}
+              creatableRoles={effectiveCreatableRoles}
               onCreated={() => {
                 setOpen(false);
                 qc.invalidateQueries({ queryKey: ["downline-users"] });
