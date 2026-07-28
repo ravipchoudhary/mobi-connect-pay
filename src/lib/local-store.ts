@@ -5,6 +5,7 @@ export interface LocalUserRecord {
   full_name: string;
   mobile: string;
   email: string | null;
+  password?: string | null;
   username: string | null;
   status: "active" | "suspended" | "inactive";
   kyc_status: string;
@@ -15,6 +16,18 @@ export interface LocalUserRecord {
   created_at: string;
   last_login_at: string | null;
   roles: Role[];
+  pan_number?: string | null;
+  aadhaar_last4?: string | null;
+  address?: string | null;
+  pincode?: string | null;
+  gst_number?: string | null;
+}
+
+type LocalUserStorageRecord = Omit<LocalUserRecord, "pan_number" | "aadhaar_last4" | "address" | "pincode" | "gst_number">;
+
+function stripSensitiveUserData(user: LocalUserRecord): LocalUserStorageRecord {
+  const { pan_number, aadhaar_last4, address, pincode, gst_number, ...rest } = user;
+  return rest;
 }
 
 export interface LocalWalletRecord {
@@ -29,6 +42,7 @@ export interface LocalLedgerEntry {
   kind: "main" | "commission" | "hold";
   direction: "credit" | "debit";
   amount: number;
+  balance_after?: number;
   reference_type: string;
   reference_id: string;
   description: string;
@@ -39,6 +53,8 @@ const USERS_KEY = "mobi-connect-local-users";
 const WALLETS_KEY = "mobi-connect-local-wallets";
 const LEDGER_KEY = "mobi-connect-local-ledger";
 const SESSION_KEY = "mobi-connect-local-session";
+const SESSION_CLEARED_KEY = "mobi-connect-local-session-cleared";
+export const LOCAL_SESSION_CHANGED_EVENT = "local-session-changed";
 
 interface StoreState {
   users: LocalUserRecord[];
@@ -56,6 +72,27 @@ const store: StoreState = {
 
 let hydrated = false;
 
+function getSeedUser(now: string): LocalUserRecord {
+  return {
+    id: "demo-admin",
+    full_name: "Super Admin",
+    mobile: "9999999999",
+    email: "admin@paysol.local",
+    // SHA-256 hash of "password"
+    password: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
+    username: "superadmin",
+    status: "active",
+    kyc_status: "approved",
+    business_name: "Pay Solution",
+    city: "Delhi",
+    state: "Delhi",
+    parent_id: null,
+    created_at: now,
+    last_login_at: now,
+    roles: ["super_admin"],
+  };
+}
+
 function loadFromStorage() {
   if (hydrated) return;
   hydrated = true;
@@ -63,7 +100,7 @@ function loadFromStorage() {
   if (typeof window !== "undefined") {
     try {
       const users = window.localStorage.getItem(USERS_KEY);
-      if (users) store.users = JSON.parse(users) as LocalUserRecord[];
+      if (users) store.users = JSON.parse(users) as LocalUserStorageRecord[] as LocalUserRecord[];
       const wallets = window.localStorage.getItem(WALLETS_KEY);
       if (wallets) store.wallets = JSON.parse(wallets) as LocalWalletRecord[];
       const ledger = window.localStorage.getItem(LEDGER_KEY);
@@ -77,22 +114,7 @@ function loadFromStorage() {
 
   if (store.users.length === 0) {
     const now = new Date().toISOString();
-    const seedUser: LocalUserRecord = {
-      id: "demo-admin",
-      full_name: "Super Admin",
-      mobile: "9999999999",
-      email: "admin@paysol.local",
-      username: "superadmin",
-      status: "active",
-      kyc_status: "approved",
-      business_name: "Pay Solution",
-      city: "Delhi",
-      state: "Delhi",
-      parent_id: null,
-      created_at: now,
-      last_login_at: now,
-      roles: ["super_admin"],
-    };
+    const seedUser = getSeedUser(now);
     store.users = [seedUser];
     store.wallets = [
       { user_id: seedUser.id, kind: "main", balance: 500000 },
@@ -100,15 +122,17 @@ function loadFromStorage() {
       { user_id: seedUser.id, kind: "hold", balance: 0 },
     ];
     store.ledger = [];
-    store.session = { userId: seedUser.id, role: "super_admin" };
-    persistState();
+    // Do not auto-create a session on first load; require explicit sign-in.
+    if (typeof window !== "undefined") {
+      persistState();
+    }
   }
 }
 
 function persistState() {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(USERS_KEY, JSON.stringify(store.users));
+    window.localStorage.setItem(USERS_KEY, JSON.stringify(store.users.map(stripSensitiveUserData)));
     window.localStorage.setItem(WALLETS_KEY, JSON.stringify(store.wallets));
     window.localStorage.setItem(LEDGER_KEY, JSON.stringify(store.ledger));
     if (store.session) {
@@ -119,6 +143,51 @@ function persistState() {
   } catch {
     // ignore storage write failures
   }
+}
+
+async function hashLocalUserPassword(password: string): Promise<string> {
+  if (typeof crypto !== "undefined" && "subtle" in crypto) {
+    const bytes = new TextEncoder().encode(password);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  if (typeof process !== "undefined" && process.versions?.node) {
+    const { createHash } = await import("crypto");
+    return createHash("sha256").update(password).digest("hex");
+  }
+
+  throw new Error("Unable to hash password in this environment.");
+}
+
+export async function verifyLocalUserPassword(user: LocalUserRecord, password: string) {
+  if (!user.password) return false;
+  const hashed = await hashLocalUserPassword(password);
+  return user.password === hashed;
+}
+
+export async function createLocalUser(input: Omit<LocalUserRecord, "id" | "created_at" | "last_login_at">): Promise<LocalUserRecord> {
+  const now = new Date().toISOString();
+  const user: LocalUserRecord = {
+    id: crypto.randomUUID(),
+    created_at: now,
+    last_login_at: null,
+    ...input,
+  };
+
+  if (user.password && user.password.length > 0) {
+    user.password = await hashLocalUserPassword(user.password);
+  }
+
+  const users = [...listLocalUsers(), user];
+  writeStorage(USERS_KEY, users);
+  return user;
+}
+
+export function updateLocalUser(userId: string, patch: Partial<LocalUserRecord>): LocalUserRecord | undefined {
+  const users = listLocalUsers().map((user) => (user.id === userId ? { ...user, ...patch } : user));
+  writeStorage(USERS_KEY, users);
+  return users.find((user) => user.id === userId);
 }
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -154,6 +223,16 @@ function writeStorage<T>(key: string, value: T) {
       break;
   }
   persistState();
+  try {
+    if (typeof window !== "undefined") {
+      // @ts-ignore - attach debug array for runtime inspection
+      window.__sessionDebug = window.__sessionDebug || [];
+      // @ts-ignore
+      window.__sessionDebug.push({ ts: new Date().toISOString(), action: "writeStorage", key, value });
+    }
+  } catch (e) {
+    // ignore
+  }
 }
 
 loadFromStorage();
@@ -162,39 +241,96 @@ export function listLocalUsers(): LocalUserRecord[] {
   return readStorage<LocalUserRecord[]>(USERS_KEY, []);
 }
 
-export function createLocalUser(input: Omit<LocalUserRecord, "id" | "created_at" | "last_login_at">): LocalUserRecord {
-  const now = new Date().toISOString();
-  const user: LocalUserRecord = {
-    id: crypto.randomUUID(),
-    created_at: now,
-    last_login_at: null,
-    ...input,
-  };
-  const users = [...listLocalUsers(), user];
-  writeStorage(USERS_KEY, users);
-  return user;
-}
-
 export function updateLocalUserStatus(userId: string, status: LocalUserRecord["status"]): void {
   const users = listLocalUsers().map((u) => (u.id === userId ? { ...u, status } : u));
   writeStorage(USERS_KEY, users);
 }
 
 export function getLocalSession() {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem(SESSION_KEY);
+      return raw ? (JSON.parse(raw) as { userId: string; role?: Role }) : null;
+    } catch {
+      return null;
+    }
+  }
+
   return readStorage<{ userId: string; role?: Role } | null>(SESSION_KEY, null);
 }
 
 export function setLocalSession(userId: string, role?: Role) {
-  writeStorage(SESSION_KEY, { userId, role });
+  try {
+    if (typeof window !== "undefined") {
+      // @ts-ignore
+      window.__sessionDebug = window.__sessionDebug || [];
+      // @ts-ignore
+      window.__sessionDebug.push({ ts: new Date().toISOString(), action: "setLocalSession", userId, role });
+      try {
+        // clear any recent-cleared sentinel when explicitly setting a session
+        window.localStorage.removeItem(SESSION_CLEARED_KEY);
+      } catch {}
+    }
+  } catch {}
+
+  const resolvedRole = role ?? findLocalUserById(userId)?.roles[0];
+  writeStorage(SESSION_KEY, { userId, role: resolvedRole });
+
+  try {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(LOCAL_SESSION_CHANGED_EVENT));
+    }
+  } catch {}
 }
 
 export function clearLocalSession() {
+  try {
+    if (typeof window !== "undefined") {
+      // @ts-ignore
+      window.__sessionDebug = window.__sessionDebug || [];
+      // @ts-ignore
+      window.__sessionDebug.push({ ts: new Date().toISOString(), action: "clearLocalSession" });
+    }
+  } catch {}
   writeStorage(SESSION_KEY, null);
+  try {
+    if (typeof window !== "undefined") {
+      // mark a short-lived sentinel so auto-creation checks can avoid immediately recreating a session
+      window.localStorage.setItem(SESSION_CLEARED_KEY, Date.now().toString());
+      window.dispatchEvent(new Event(LOCAL_SESSION_CHANGED_EVENT));
+      window.dispatchEvent(new Event(LOCAL_SESSION_CHANGED_EVENT));
+    }
+  } catch {}
+}
+
+export function isLocalSessionRecentlyCleared() {
+  if (typeof window === "undefined") return false;
+  try {
+    const ts = window.localStorage.getItem(SESSION_CLEARED_KEY);
+    if (!ts) return false;
+    const delta = Date.now() - Number(ts);
+    return !Number.isNaN(delta) && delta < 5000;
+  } catch {
+    return false;
+  }
 }
 
 export function ensureLocalSession() {
   const existing = getLocalSession();
   if (existing?.userId) return existing;
+
+  // If a session was just cleared by the user, avoid auto-creating a new one immediately.
+  try {
+    if (typeof window !== "undefined") {
+      const ts = window.localStorage.getItem(SESSION_CLEARED_KEY);
+      if (ts) {
+        const delta = Date.now() - Number(ts || 0);
+        if (!Number.isNaN(delta) && delta < 5000) {
+          return null;
+        }
+      }
+    }
+  } catch {}
 
   const admin = listLocalUsers().find((user) => user.roles.includes("super_admin"));
   if (admin) {
@@ -233,9 +369,10 @@ export function applyLocalWalletMove(userId: string, kind: LocalWalletRecord["ki
   if (!existing) {
     wallets.push({ user_id: userId, kind, balance: 0 });
   }
+  let nextBalance = 0;
   const next = wallets.map((w) => {
     if (w.user_id !== userId || w.kind !== kind) return w;
-    const nextBalance = direction === "credit" ? w.balance + amount : w.balance - amount;
+    nextBalance = direction === "credit" ? w.balance + amount : w.balance - amount;
     return { ...w, balance: nextBalance };
   });
   writeStorage(WALLETS_KEY, next);
@@ -245,6 +382,7 @@ export function applyLocalWalletMove(userId: string, kind: LocalWalletRecord["ki
     kind,
     direction,
     amount,
+    balance_after: nextBalance,
     reference_type: referenceType,
     reference_id: referenceId,
     description,

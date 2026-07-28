@@ -1,7 +1,8 @@
-import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Bell, LogOut, Search, Sun, Moon } from "lucide-react";
 
+import { getLocalSession, findLocalUserById } from "@/lib/local-store";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,15 @@ import { signOut, useSession } from "@/hooks/use-session";
 
 export const Route = createFileRoute("/_app")({
   component: AppLayout,
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const session = getLocalSession();
+      const validSession = session?.userId && findLocalUserById(session.userId);
+      if (!validSession) {
+        throw redirect({ to: "/auth" });
+      }
+    }
+  },
 });
 
 function AppLayout() {
@@ -26,7 +36,9 @@ function AppLayout() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    if (ready && !isAuthenticated) navigate({ to: "/auth" });
+    if (ready && !isAuthenticated) {
+      navigate({ to: "/auth", replace: true });
+    }
   }, [ready, isAuthenticated, navigate]);
 
   useEffect(() => {
@@ -95,7 +107,7 @@ function AppLayout() {
                     className="text-destructive focus:text-destructive"
                     onClick={async () => {
                       await signOut();
-                      navigate({ to: "/auth" });
+                      navigate({ to: "/auth", replace: true });
                     }}
                   >
                     <LogOut className="mr-2 h-4 w-4" /> Sign out

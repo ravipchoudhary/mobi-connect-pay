@@ -1,4 +1,4 @@
-import { ensureLocalSession, findLocalUserById } from "@/lib/local-store";
+import { getLocalSession, findLocalUserById } from "@/lib/local-store";
 
 export type AppRole = "super_admin" | "master_distributor" | "distributor" | "retailer" | "agent" | "support" | "auditor";
 
@@ -11,6 +11,10 @@ const KNOWN_ROLES: AppRole[] = [
   "support",
   "auditor",
 ];
+
+export function getEffectiveUserId(context?: { userId?: string; claims?: Record<string, unknown> }) {
+  return context?.userId ?? getLocalSession()?.userId ?? null;
+}
 
 function isAppRole(value: unknown): value is AppRole {
   return typeof value === "string" && KNOWN_ROLES.includes(value as AppRole);
@@ -37,7 +41,8 @@ function normalizeRole(value: unknown): AppRole[] {
   return [];
 }
 
-export async function resolveCallerRoles(context: { userId: string; claims?: Record<string, unknown> }): Promise<AppRole[]> {
+export async function resolveCallerRoles(context: { userId?: string; claims?: Record<string, unknown> }): Promise<AppRole[]> {
+  const userId = getEffectiveUserId(context);
   const seen = new Set<AppRole>();
   const add = (role: unknown) => {
     normalizeRole(role).forEach((value) => seen.add(value));
@@ -54,16 +59,10 @@ export async function resolveCallerRoles(context: { userId: string; claims?: Rec
     return Array.from(seen);
   }
 
-  const localUser = findLocalUserById(context.userId);
-  if (localUser?.roles?.length) {
-    return localUser.roles;
-  }
-
-  const localSession = ensureLocalSession();
-  if (localSession?.userId) {
-    const fallbackUser = findLocalUserById(localSession.userId);
-    if (fallbackUser?.roles?.length) {
-      return fallbackUser.roles;
+  if (userId) {
+    const localUser = findLocalUserById(userId);
+    if (localUser?.roles?.length) {
+      return localUser.roles;
     }
   }
 

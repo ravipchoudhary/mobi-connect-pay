@@ -1,19 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { applyLocalWalletMove, getLocalWalletSummary, listLocalUsers } from "@/lib/local-store";
 import { resolveCallerRoles } from "@/lib/role-utils";
 
 /** Load all wallets + last 100 ledger entries for the current user. */
 export const getMyWalletOverview = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .handler(async (args: any) => {
+    const { context } = args as { context?: { userId: string } };
+    if (!context?.userId) {
+      throw new Error("Unauthorized");
+    }
     return getLocalWalletSummary(context.userId);
   });
 
 /** Transfer money between two wallets belonging to the same user. */
 export const transferBetweenOwnWallets = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((raw) =>
     z
       .object({
@@ -25,7 +26,11 @@ export const transferBetweenOwnWallets = createServerFn({ method: "POST" })
       .refine((d) => d.from !== d.to, { message: "Source and destination must differ" })
       .parse(raw),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async (args: any) => {
+    const { data, context } = args as { data: any; context?: { userId: string } };
+    if (!context?.userId) {
+      throw new Error("Unauthorized");
+    }
     const ref = crypto.randomUUID();
     applyLocalWalletMove(context.userId, data.from, "debit", data.amount, "wallet_transfer", ref, data.note ?? `Transfer ${data.from} → ${data.to}`);
     applyLocalWalletMove(context.userId, data.to, "credit", data.amount, "wallet_transfer", ref, data.note ?? `Transfer ${data.from} → ${data.to}`);
@@ -39,7 +44,6 @@ export const transferBetweenOwnWallets = createServerFn({ method: "POST" })
  * super_admins/support can settle reconciliation cases manually.
  */
 export const requestWalletTopup = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((raw) =>
     z
       .object({
@@ -48,21 +52,30 @@ export const requestWalletTopup = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data, context }) => {
-    const roles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { data, context } = args as { data: any; context?: { userId: string; claims?: Record<string, unknown> } };
+    if (!context?.userId) {
+      throw new Error("Unauthorized");
+    }
+    const ctx = context as { userId: string; claims?: Record<string, unknown> };
+    const roles = await resolveCallerRoles({ userId: ctx.userId, claims: ctx.claims });
     const isAdmin = roles.some((r) => ["super_admin", "support"].includes(r));
     if (!isAdmin) {
       throw new Error("Wallet top-up requires a verified payment. Contact your administrator or complete the payment flow.");
     }
-    const userId = data.targetUserId ?? context.userId;
-    applyLocalWalletMove(userId, "main", "credit", data.amount, "admin_topup", crypto.randomUUID(), `Admin credit by ${context.userId}`);
+    const userId = data.targetUserId ?? ctx.userId;
+    applyLocalWalletMove(userId, "main", "credit", data.amount, "admin_topup", crypto.randomUUID(), `Admin credit by ${ctx.userId}`);
     return { ok: true as const };
   });
 
 export const listVerifiedRetailersForCredit = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const roles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { context } = args as { context?: { userId: string; claims?: Record<string, unknown> } };
+    if (!context?.userId) {
+      throw new Error("Unauthorized");
+    }
+    const ctx = context as { userId: string; claims?: Record<string, unknown> };
+    const roles = await resolveCallerRoles({ userId: ctx.userId, claims: ctx.claims });
     const isAdmin = roles.some((r) => ["super_admin", "support"].includes(r));
     if (!isAdmin) {
       throw new Error("Only admins can view verified retailers for wallet credits.");
@@ -83,7 +96,6 @@ export const listVerifiedRetailersForCredit = createServerFn({ method: "GET" })
   });
 
 export const creditVerifiedRetailerWallet = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((raw) =>
     z
       .object({
@@ -93,8 +105,13 @@ export const creditVerifiedRetailerWallet = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data, context }) => {
-    const roles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { data, context } = args as { data: any; context?: { userId: string; claims?: Record<string, unknown> } };
+    if (!context?.userId) {
+      throw new Error("Unauthorized");
+    }
+    const ctx = context as { userId: string; claims?: Record<string, unknown> };
+    const roles = await resolveCallerRoles({ userId: ctx.userId, claims: ctx.claims });
     const isAdmin = roles.some((r) => ["super_admin", "support"].includes(r));
     if (!isAdmin) {
       throw new Error("Only admins can credit verified retailers.");
@@ -109,6 +126,6 @@ export const creditVerifiedRetailerWallet = createServerFn({ method: "POST" })
       throw new Error("Wallet credit is allowed only for retailer accounts.");
     }
 
-    applyLocalWalletMove(data.targetUserId, "main", "credit", data.amount, "admin_retailer_credit", crypto.randomUUID(), data.note ?? `Retailer wallet credit by ${context.userId}`);
+    applyLocalWalletMove(data.targetUserId, "main", "credit", data.amount, "admin_retailer_credit", crypto.randomUUID(), data.note ?? `Retailer wallet credit by ${ctx.userId}`);
     return { ok: true as const };
   });

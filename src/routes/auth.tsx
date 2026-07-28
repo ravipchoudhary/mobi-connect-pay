@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -20,14 +20,28 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import { supabase } from "@/integrations/supabase/client";
 import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
-import { resolveUsernameEmail } from "@/lib/username.functions";
-import { ensureLocalSession, setLocalSession } from "@/lib/local-store";
+import { verifyUsernamePassword } from "@/lib/username.functions";
+import { getLocalSession, isLocalSessionRecentlyCleared, setLocalSession, findLocalUserById, clearLocalSession } from "@/lib/local-store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
+  beforeLoad: () => {
+    if (typeof window !== "undefined") {
+      const session = getLocalSession();
+      if (session?.userId) {
+        const validUser = findLocalUserById(session.userId);
+        if (validUser) {
+          if (!isLocalSessionRecentlyCleared()) {
+            throw redirect({ to: "/dashboard" });
+          }
+        } else {
+          clearLocalSession();
+        }
+      }
+    }
+  },
 });
 
 type Step = "mobile" | "otp" | "name";
@@ -38,7 +52,7 @@ function AuthPage() {
   const navigate = useNavigate();
   const send = useServerFn(sendMobileOtp);
   const verify = useServerFn(verifyMobileOtp);
-  const resolveUname = useServerFn(resolveUsernameEmail);
+  const verifyPassword = useServerFn(verifyUsernamePassword);
 
   const [step, setStep] = useState<Step>("mobile");
   const [mobile, setMobile] = useState("");
@@ -51,28 +65,14 @@ function AuthPage() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
-        const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
-        if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-          const localSession = ensureLocalSession();
-          if (localSession?.userId) {
-            setLocalSession(localSession.userId, "super_admin");
-            navigate({ to: "/dashboard" });
-          }
-          return;
-        }
+    if (typeof window === "undefined") return;
 
-        const { data } = await supabase.auth.getSession();
-        if (data.session) navigate({ to: "/dashboard" });
-      } catch {
-        const localSession = ensureLocalSession();
-        if (localSession?.userId) navigate({ to: "/dashboard" });
-      }
-    };
+    const localSession = getLocalSession();
+    const recentlyCleared = isLocalSessionRecentlyCleared();
 
-    void init();
+    if (!recentlyCleared && localSession?.userId) {
+      navigate({ to: "/dashboard", replace: true });
+    }
   }, [navigate]);
 
   useEffect(() => {
@@ -102,13 +102,9 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp, fullName: nameOverride } });
-      const { error } = await supabase.auth.verifyOtp({
-        type: "magiclink",
-        token_hash: res.tokenHash,
-      });
-      if (error) throw error;
+      setLocalSession(res.userId);
       toast.success("Welcome to Pay Solution");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/dashboard", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Verification failed");
     } finally {
@@ -118,24 +114,12 @@ function AuthPage() {
 
   const handleVerifyOtp = async () => {
     if (otp.length !== 6) return toast.error("Enter the 6-digit OTP");
-    // Peek: does a profile with a name already exist? If yes, go straight in.
-    // We call verify with no fullName; if the profile is fresh we then ask for name.
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp } });
-      const { error } = await supabase.auth.verifyOtp({
-        type: "magiclink",
-        token_hash: res.tokenHash,
-      });
-      if (error) throw error;
-      // Check if profile already has a full name.
-      const { data: prof } = await supabase.from("profiles").select("full_name").eq("mobile", mobile).maybeSingle();
-      if (prof && prof.full_name && prof.full_name.trim().length > 1) {
-        toast.success("Welcome back!");
-        navigate({ to: "/dashboard" });
-      } else {
-        setStep("name");
-      }
+      setLocalSession(res.userId);
+      toast.success("Welcome back!");
+      navigate({ to: "/dashboard", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Verification failed");
     } finally {
@@ -147,15 +131,8 @@ function AuthPage() {
     if (fullName.trim().length < 2) return toast.error("Enter your full name");
     setLoading(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Session expired");
-      const { error } = await supabase
-        .from("profiles")
-        .update({ full_name: fullName.trim() })
-        .eq("id", u.user.id);
-      if (error) throw error;
       toast.success("Account ready");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/dashboard", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to save details");
     } finally {
@@ -168,11 +145,10 @@ function AuthPage() {
     if (password.length < 6) return toast.error("Enter your password");
     setLoading(true);
     try {
-      const { email } = await resolveUname({ data: { username: username.trim() } });
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw new Error("Invalid username or password.");
+      const res = await verifyPassword({ data: { username: username.trim(), password } });
+      setLocalSession(res.userId);
       toast.success("Welcome back!");
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/dashboard", replace: true });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Sign-in failed");
     } finally {

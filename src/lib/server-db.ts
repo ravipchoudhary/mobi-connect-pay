@@ -1,7 +1,7 @@
 import initSqlJs from "sql.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes, pbkdf2Sync, timingSafeEqual } from "node:crypto";
 
 const DB_FILE = resolve(process.cwd(), "data", "db.sqlite");
 mkdirSync(dirname(DB_FILE), { recursive: true });
@@ -10,7 +10,7 @@ let dbPromise: Promise<import("sql.js").Database> | null = null;
 
 async function initDb() {
   const SQL = await initSqlJs({
-    locateFile: (file) => new URL(`../../node_modules/sql.js/dist/${file}`, import.meta.url).href,
+    locateFile: (file: string) => new URL(`../../node_modules/sql.js/dist/${file}`, import.meta.url).href,
   });
 
   const bytes = existsSync(DB_FILE) ? readFileSync(DB_FILE) : undefined;
@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT,
   username TEXT UNIQUE,
   password_hash TEXT,
+  password_salt TEXT,
   status TEXT NOT NULL,
   kyc_status TEXT NOT NULL,
   business_name TEXT,
@@ -88,9 +89,10 @@ CREATE TABLE IF NOT EXISTS mobile_otps (
   stmt.free();
   if (!countRow.count) {
     const now = new Date().toISOString();
-    const passwordHash = createHash("sha256").update("superadmin123").digest("hex");
+    const salt = randomBytes(16).toString("hex");
+    const passwordHash = pbkdf2Sync("superadmin123", salt, 310000, 64, "sha512").toString("hex");
     db.run(
-      `INSERT INTO users (id, full_name, mobile, email, username, password_hash, status, kyc_status, business_name, city, state, parent_id, created_at, last_login_at, roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      `INSERT INTO users (id, full_name, mobile, email, username, password_hash, password_salt, status, kyc_status, business_name, city, state, parent_id, created_at, last_login_at, roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
       [
         "demo-admin",
         "Super Admin",
@@ -98,6 +100,7 @@ CREATE TABLE IF NOT EXISTS mobile_otps (
         "admin@paysol.local",
         "superadmin",
         passwordHash,
+        salt,
         "active",
         "approved",
         "Pay Solution",
@@ -171,6 +174,7 @@ export async function createUser(input: {
   email: string | null;
   username: string | null;
   password_hash: string | null;
+  password_salt: string | null;
   status: string;
   kyc_status: string;
   business_name: string | null;
@@ -183,7 +187,7 @@ export async function createUser(input: {
   const now = new Date().toISOString();
   const id = crypto.randomUUID();
   db.run(
-    `INSERT INTO users (id, full_name, mobile, email, username, password_hash, status, kyc_status, business_name, city, state, parent_id, created_at, last_login_at, roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+    `INSERT INTO users (id, full_name, mobile, email, username, password_hash, password_salt, status, kyc_status, business_name, city, state, parent_id, created_at, last_login_at, roles) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
     [
       id,
       input.full_name,
@@ -191,6 +195,7 @@ export async function createUser(input: {
       input.email,
       input.username,
       input.password_hash,
+      input.password_salt,
       input.status,
       input.kyc_status,
       input.business_name,
@@ -228,10 +233,24 @@ export async function updateUserStatus(userId: string, status: string) {
 
 export async function updateUserProfile(userId: string, patch: Partial<{ full_name: string; kyc_status: string; pan_number?: string | null; aadhaar_last4?: string | null; business_name?: string | null; address?: string | null; city?: string | null; state?: string | null; pincode?: string | null; gst_number?: string | null; }>) {
   const db = await getDb();
-  const fields = Object.keys(patch);
-  if (!fields.length) return;
-  const sets = fields.map((key) => `${key} = ?`).join(", ");
-  const values = fields.map((k) => (patch as any)[k]);
+  const allowedFields = [
+    "full_name",
+    "kyc_status",
+    "pan_number",
+    "aadhaar_last4",
+    "business_name",
+    "address",
+    "city",
+    "state",
+    "pincode",
+    "gst_number",
+  ] as const;
+
+  const updates = allowedFields.filter((field) => field in patch) as Array<keyof typeof patch>;
+  if (!updates.length) return;
+
+  const sets = updates.map((key) => `${key} = ?`).join(", ");
+  const values = updates.map((key) => patch[key]);
   db.run(`UPDATE users SET ${sets} WHERE id = ?;`, [...values, userId]);
   saveDb(db);
 }
@@ -255,23 +274,41 @@ export async function getWalletSummary(userId: string) {
 
 export async function applyWalletMove(userId: string, kind: string, direction: "credit" | "debit", amount: number, referenceType: string, referenceId: string, description: string) {
   const db = await getDb();
-  const walletStmt = db.prepare("SELECT balance FROM wallets WHERE user_id = ? AND kind = ?;");
-  walletStmt.bind([userId, kind]);
-  const hasRow = walletStmt.step();
-  const wallet = hasRow ? walletStmt.getAsObject() : null;
-  walletStmt.free();
-  if (!wallet) {
-    db.run("INSERT INTO wallets (user_id, kind, balance) VALUES (?, ?, ?);", [userId, kind, 0]);
+  db.run("BEGIN TRANSACTION;");
+
+  try {
+    const walletStmt = db.prepare("SELECT balance FROM wallets WHERE user_id = ? AND kind = ?;");
+    walletStmt.bind([userId, kind]);
+    const hasRow = walletStmt.step();
+    const wallet = hasRow ? walletStmt.getAsObject() : null;
+    walletStmt.free();
+
+    if (!wallet) {
+      db.run("INSERT INTO wallets (user_id, kind, balance) VALUES (?, ?, ?);", [userId, kind, 0]);
+    }
+
+    const currentBalance = wallet ? Number(wallet.balance) : 0;
+    const nextBalance = direction === "credit" ? currentBalance + amount : currentBalance - amount;
+
+    if (direction === "debit" && nextBalance < 0) {
+      db.run("ROLLBACK;");
+      throw new Error("Insufficient funds for this wallet move.");
+    }
+
+    db.run("UPDATE wallets SET balance = ? WHERE user_id = ? AND kind = ?;", [nextBalance, userId, kind]);
+    db.run(
+      `INSERT INTO ledger (id, user_id, kind, direction, amount, reference_type, reference_id, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      [crypto.randomUUID(), userId, kind, direction, amount, referenceType, referenceId, description, new Date().toISOString()],
+    );
+    db.run("COMMIT;");
+    saveDb(db);
+    return { ok: true as const };
+  } catch (err) {
+    try {
+      db.run("ROLLBACK;");
+    } catch {}
+    throw err;
   }
-  const currentBalance = wallet ? Number(wallet.balance) : 0;
-  const nextBalance = direction === "credit" ? currentBalance + amount : currentBalance - amount;
-  db.run("UPDATE wallets SET balance = ? WHERE user_id = ? AND kind = ?;", [nextBalance, userId, kind]);
-  db.run(
-    `INSERT INTO ledger (id, user_id, kind, direction, amount, reference_type, reference_id, description, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
-    [crypto.randomUUID(), userId, kind, direction, amount, referenceType, referenceId, description, new Date().toISOString()],
-  );
-  saveDb(db);
-  return { ok: true as const };
 }
 
 export async function listVerifiedRetailers() {
@@ -361,13 +398,28 @@ export async function incrementOtpAttempts(id: string, attempts: number) {
   saveDb(db);
 }
 
+function verifyPasswordHash(password: string, hash: string, salt: string | null) {
+  if (!salt) {
+    const digest = createHash("sha256").update(password).digest("hex");
+    return timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(digest, "hex"));
+  }
+
+  const derived = pbkdf2Sync(password, salt, 310000, 64, "sha512").toString("hex");
+  return timingSafeEqual(Buffer.from(hash, "hex"), Buffer.from(derived, "hex"));
+}
+
 export async function findUserByUsernameAndPassword(username: string, password: string) {
   const db = await getDb();
-  const passwordHash = createHash("sha256").update(password).digest("hex");
-  const stmt = db.prepare("SELECT * FROM users WHERE username = ? AND password_hash = ?;");
-  stmt.bind([username, passwordHash]);
+  const stmt = db.prepare("SELECT * FROM users WHERE username = ?;");
+  stmt.bind([username]);
   const row = stmt.step() ? stmt.getAsObject() : null;
   stmt.free();
+  if (!row) return null;
+  const passwordHash = row.password_hash as string | null;
+  const salt = row.password_salt as string | null;
+  if (!passwordHash || !verifyPasswordHash(password, passwordHash, salt)) {
+    return null;
+  }
   return parseRow(row);
 }
 

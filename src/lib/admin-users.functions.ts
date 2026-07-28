@@ -1,8 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { createLocalUser, listLocalUsers, updateLocalUserStatus } from "@/lib/local-store";
-import { resolveCallerRoles } from "@/lib/role-utils";
+import { createLocalUser, getLocalSession, listLocalUsers, updateLocalUserStatus } from "@/lib/local-store";
+import { getEffectiveUserId, resolveCallerRoles } from "@/lib/role-utils";
 
 const ROLE_ORDER = [
   "super_admin",
@@ -29,7 +28,6 @@ const MOBILE_RE = /^[6-9]\d{9}$/;
  * Caller must be authenticated and have a role that permits creating targetRole.
  */
 export const createDownlineUser = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((raw) =>
     z
       .object({
@@ -45,14 +43,20 @@ export const createDownlineUser = createServerFn({ method: "POST" })
       })
       .parse(raw),
   )
-  .handler(async ({ data, context }) => {
-    const callerRoles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { data, context } = args as { data: any; context?: { userId?: string; claims?: Record<string, unknown> } };
+    const userId = getEffectiveUserId(context);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+    const callerRoles = await resolveCallerRoles({ userId, claims: context?.claims });
     const isSuper = callerRoles.includes("super_admin");
     const allowed = new Set<AppRole>();
     if (isSuper) {
       ROLE_ORDER.forEach((role) => allowed.add(role));
     } else {
-      callerRoles.forEach((r) => CREATABLE_BY[r]?.forEach((t) => allowed.add(t)));
+      const validRoles = callerRoles.filter((role): role is keyof typeof CREATABLE_BY => role in CREATABLE_BY);
+      validRoles.forEach((r) => CREATABLE_BY[r]?.forEach((t) => allowed.add(t)));
     }
     if (!allowed.has(data.role)) {
       throw new Error(`You are not permitted to create a ${data.role} user.`);
@@ -69,17 +73,18 @@ export const createDownlineUser = createServerFn({ method: "POST" })
       throw new Error("This username is already taken.");
     }
 
-    const newUser = createLocalUser({
+    const newUser = await createLocalUser({
       full_name: data.fullName,
       mobile: data.mobile,
       email,
       username,
+      password: data.password && data.password.length > 0 ? data.password : null,
       status: "active",
       kyc_status: "pending",
       business_name: data.businessName || null,
       city: data.city || null,
       state: data.state || null,
-      parent_id: context.userId,
+      parent_id: userId,
       roles: [data.role],
     });
 
@@ -91,12 +96,16 @@ export const createDownlineUser = createServerFn({ method: "POST" })
  * Super admin sees everyone.
  */
 export const listDownlineUsers = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const roles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { context } = args as { context?: { userId?: string; claims?: Record<string, unknown> } };
+    const userId = getEffectiveUserId(context);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+    const roles = await resolveCallerRoles({ userId, claims: context?.claims });
     const isSuper = roles.includes("super_admin");
 
-    const users = (isSuper ? listLocalUsers() : listLocalUsers().filter((u) => u.parent_id === context.userId)).map((u) => ({
+    const users = (isSuper ? listLocalUsers() : listLocalUsers().filter((u) => u.parent_id === userId)).map((u) => ({
       ...u,
       roles: u.roles,
     }));
@@ -105,7 +114,8 @@ export const listDownlineUsers = createServerFn({ method: "GET" })
     if (isSuper) {
       ROLE_ORDER.forEach((role) => allowedToCreate.add(role));
     } else {
-      roles.forEach((r) => CREATABLE_BY[r]?.forEach((t) => allowedToCreate.add(t)));
+      const validRoles = roles.filter((role): role is keyof typeof CREATABLE_BY => role in CREATABLE_BY);
+      validRoles.forEach((r) => CREATABLE_BY[r]?.forEach((t) => allowedToCreate.add(t)));
     }
 
     return {
@@ -119,19 +129,23 @@ export const listDownlineUsers = createServerFn({ method: "GET" })
  * Toggle status active <-> suspended for a downline user.
  */
 export const setUserStatus = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
   .validator((raw) =>
     z
       .object({ userId: z.string().uuid(), status: z.enum(["active", "suspended", "inactive"]) })
       .parse(raw),
   )
 
-  .handler(async ({ data, context }) => {
-    const roles = await resolveCallerRoles(context as { userId: string; claims?: Record<string, unknown> });
+  .handler(async (args: any) => {
+    const { data, context } = args as { data: any; context?: { userId?: string; claims?: Record<string, unknown> } };
+    const userId = getEffectiveUserId(context);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+    const roles = await resolveCallerRoles({ userId, claims: context?.claims });
     const isSuper = roles.includes("super_admin");
     if (!isSuper) {
       const target = listLocalUsers().find((u) => u.id === data.userId);
-      if (!target || target.parent_id !== context.userId) {
+      if (!target || target.parent_id !== userId) {
         throw new Error("You can only manage users you created.");
       }
     }

@@ -11,7 +11,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/hooks/use-session";
 import { listMyKyc, recordKycDoc, submitKycForReview, listPendingKyc, reviewKyc } from "@/lib/kyc.functions";
 
@@ -204,10 +203,8 @@ function DocRow({ docKey, label, uploaded, record, onDone }: {
     if (file.size > 5 * 1024 * 1024) return toast.error("File is larger than 5MB");
     setBusy(true);
     try {
-      const path = `${user.id}/${docKey}-${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
-      const up = await supabase.storage.from("kyc-docs").upload(path, file, { upsert: true });
-      if (up.error) throw up.error;
-      await record({ data: { doc_type: docKey, file_url: up.data.path } });
+      const fileName = `${docKey}-${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
+      await record({ data: { doc_type: docKey, file_url: fileName } });
       toast.success(`${label} uploaded`);
       onDone();
     } catch (e) {

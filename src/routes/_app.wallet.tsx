@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { supabase } from "@/integrations/supabase/client";
 import {
   getMyWalletOverview,
   requestWalletTopup,
@@ -40,16 +39,6 @@ function WalletPage() {
   const qc = useQueryClient();
   const overview = useServerFn(getMyWalletOverview);
   const { data, isLoading } = useQuery({ queryKey: ["wallet-overview"], queryFn: () => overview({ data: undefined as never }) });
-
-  // Realtime: refetch when ledger changes for me.
-  useEffect(() => {
-    const ch = supabase
-      .channel("wallet-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "wallet_ledger" }, () => qc.invalidateQueries({ queryKey: ["wallet-overview"] }))
-      .on("postgres_changes", { event: "*", schema: "public", table: "wallets" }, () => qc.invalidateQueries({ queryKey: ["wallet-overview"] }))
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [qc]);
 
   const wallets = data?.wallets ?? [];
   const ledger = data?.ledger ?? [];

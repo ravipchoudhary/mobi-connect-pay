@@ -17,7 +17,9 @@ const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
 function DMT2Page() {
   const { primaryRole, profile } = useSession();
-  const role = primaryRole ?? "retailer";
+  const role = (primaryRole && ["super_admin", "master_distributor", "distributor", "retailer", "agent"].includes(primaryRole)
+    ? primaryRole
+    : "retailer") as import("@/lib/demo-data").DemoRole;
   const [form, setForm] = useState({
     beneficiaryName: "Riya Sharma",
     bankAccount: "50401000012345",

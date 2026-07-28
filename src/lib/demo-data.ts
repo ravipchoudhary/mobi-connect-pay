@@ -1,4 +1,4 @@
-type DemoRole = "super_admin" | "master_distributor" | "distributor" | "retailer" | "agent";
+export type DemoRole = "super_admin" | "master_distributor" | "distributor" | "retailer" | "agent";
 
 export interface DemoTransaction {
   id: string;
