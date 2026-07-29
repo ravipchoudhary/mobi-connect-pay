@@ -71,6 +71,30 @@ const store: StoreState = {
 };
 
 let hydrated = false;
+let serverStorageFilePath: string | null = null;
+let serverFs:
+  | (typeof import("node:fs") & {
+      existsSync: typeof import("node:fs").existsSync;
+      mkdirSync: typeof import("node:fs").mkdirSync;
+      readFileSync: typeof import("node:fs").readFileSync;
+      writeFileSync: typeof import("node:fs").writeFileSync;
+    })
+  | null = null;
+let serverPath:
+  | (typeof import("node:path") & {
+      dirname: typeof import("node:path").dirname;
+      resolve: typeof import("node:path").resolve;
+    })
+  | null = null;
+
+if (typeof window === "undefined" && typeof process !== "undefined" && process.versions?.node) {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  serverFs = fs;
+  serverPath = path;
+  serverStorageFilePath = path.resolve(process.cwd(), "data", "local-store.json");
+  fs.mkdirSync(path.dirname(serverStorageFilePath), { recursive: true });
+}
 
 function getSeedUser(now: string): LocalUserRecord {
   return {
@@ -110,6 +134,24 @@ function loadFromStorage() {
     } catch {
       // ignore and fall back to defaults
     }
+  } else if (serverStorageFilePath && serverFs) {
+    try {
+      if (serverFs.existsSync(serverStorageFilePath)) {
+        const raw = serverFs.readFileSync(serverStorageFilePath, "utf-8");
+        const parsed = JSON.parse(raw) as {
+          users?: LocalUserStorageRecord[];
+          wallets?: LocalWalletRecord[];
+          ledger?: LocalLedgerEntry[];
+          session?: { userId: string; role?: Role } | null;
+        };
+        if (parsed.users) store.users = parsed.users as LocalUserRecord[];
+        if (parsed.wallets) store.wallets = parsed.wallets;
+        if (parsed.ledger) store.ledger = parsed.ledger;
+        store.session = parsed.session ?? null;
+      }
+    } catch {
+      // ignore and fall back to defaults
+    }
   }
 
   if (store.users.length === 0) {
@@ -122,15 +164,32 @@ function loadFromStorage() {
       { user_id: seedUser.id, kind: "hold", balance: 0 },
     ];
     store.ledger = [];
-    // Do not auto-create a session on first load; require explicit sign-in.
-    if (typeof window !== "undefined") {
-      persistState();
-    }
+    // Persist seeded state in both browser and server runtimes.
+    persistState();
   }
 }
 
 function persistState() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined") {
+    if (serverStorageFilePath && serverFs) {
+      try {
+        serverFs.writeFileSync(
+          serverStorageFilePath,
+          JSON.stringify({
+            users: store.users.map(stripSensitiveUserData),
+            wallets: store.wallets,
+            ledger: store.ledger,
+            session: store.session,
+          }),
+          "utf-8",
+        );
+      } catch {
+        // ignore file write failures
+      }
+    }
+    return;
+  }
+
   try {
     window.localStorage.setItem(USERS_KEY, JSON.stringify(store.users.map(stripSensitiveUserData)));
     window.localStorage.setItem(WALLETS_KEY, JSON.stringify(store.wallets));

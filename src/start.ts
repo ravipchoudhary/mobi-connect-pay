@@ -1,6 +1,21 @@
 import { createStart, createMiddleware, createCsrfMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
+import { getLocalSession } from "./lib/local-store";
+
+const authContextMiddleware = createMiddleware({ type: "function" }).client(async ({ next, context = {}, sendContext = {} }: any) => {
+  const session = getLocalSession();
+  return next({
+    context: {
+      ...context,
+      userId: session?.userId,
+    },
+    sendContext: {
+      ...sendContext,
+      userId: session?.userId,
+    },
+  });
+});
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -22,6 +37,6 @@ const csrfMiddleware = createCsrfMiddleware({
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [],
+  functionMiddleware: [authContextMiddleware],
   requestMiddleware: [csrfMiddleware, errorMiddleware],
 }));
