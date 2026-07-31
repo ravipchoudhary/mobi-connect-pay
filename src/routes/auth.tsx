@@ -102,7 +102,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp, fullName: nameOverride } });
-      setLocalSession(res.userId);
+      setLocalSession(res.userId, res.role);
       toast.success("Welcome to Pay Solution");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
@@ -117,7 +117,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp } });
-      setLocalSession(res.userId);
+      setLocalSession(res.userId, res.role);
       toast.success("Welcome back!");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
@@ -146,7 +146,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verifyPassword({ data: { username: username.trim(), password } });
-      setLocalSession(res.userId);
+      setLocalSession(res.userId, res.role);
       toast.success("Welcome back!");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {

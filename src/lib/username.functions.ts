@@ -68,5 +68,5 @@ export const verifyUsernamePassword = createServerFn({ method: "POST" })
     // Set the session
     setLocalSession(user.id, user.roles[0] as any);
 
-    return { ok: true as const, userId: user.id, email: user.email, name: user.full_name };
+    return { ok: true as const, userId: user.id, email: user.email, name: user.full_name, role: user.roles[0] };
   });

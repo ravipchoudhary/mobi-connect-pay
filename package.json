@@ -4,11 +4,11 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "vite dev --host 0.0.0.0 --port 3000",
     "build": "vite build && node scripts/create-server-entry-alias.js",
     "build:dev": "vite build --mode development && node scripts/create-server-entry-alias.js",
-    "preview": "vite preview",
-    "start:prod": "node .output/server/index.mjs",
+    "preview": "vite preview --host 0.0.0.0 --port 3000",
+    "start:prod": "node .output/server/server.js",
     "start": "npm run build && node .output/server/index.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."

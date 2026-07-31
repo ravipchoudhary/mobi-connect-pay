@@ -7,9 +7,13 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
 export default defineConfig({
+  base: "/",
   vite: {
     server: {
-      allowedHosts: ["paysol.in"],
+      host: "0.0.0.0",
+      port: 3000,
+      strictPort: false,
+      allowedHosts: true,
     },
     resolve: {
       tsconfigPaths: true,
