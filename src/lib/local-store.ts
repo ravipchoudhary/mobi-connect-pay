@@ -437,14 +437,22 @@ export function applyLocalWalletMove(userId: string, kind: LocalWalletRecord["ki
   const wallets = readStorage<LocalWalletRecord[]>(WALLETS_KEY, []);
   const existing = wallets.find((w) => w.user_id === userId && w.kind === kind);
   if (!existing) {
+    if (direction === "debit") {
+      throw new Error("Insufficient wallet balance.");
+    }
     wallets.push({ user_id: userId, kind, balance: 0 });
   }
+
   let nextBalance = 0;
   const next = wallets.map((w) => {
     if (w.user_id !== userId || w.kind !== kind) return w;
     nextBalance = direction === "credit" ? w.balance + amount : w.balance - amount;
+    if (direction === "debit" && nextBalance < 0) {
+      throw new Error("Insufficient wallet balance.");
+    }
     return { ...w, balance: nextBalance };
   });
+
   writeStorage(WALLETS_KEY, next);
   const entry: LocalLedgerEntry = {
     id: crypto.randomUUID(),

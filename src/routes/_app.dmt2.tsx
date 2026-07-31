@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addDemoNotification, addDemoDmt2Request, getDemoDmt2Requests, updateDemoDmt2RequestStatus, type DemoDmt2Request } from "@/lib/demo-data";
 import { useSession } from "@/hooks/use-session";
+import { applyLocalWalletMove, getLocalWalletSummary } from "@/lib/local-store";
 
 export const Route = createFileRoute("/_app/dmt2")({
   component: DMT2Page,
@@ -40,28 +41,48 @@ function DMT2Page() {
       return;
     }
 
-    const request = addDemoDmt2Request({
-      beneficiaryName: form.beneficiaryName,
-      bankAccount: form.bankAccount,
-      ifsc: form.ifsc,
-      amount,
-      submittedBy: profile?.full_name ?? "Retailer / Agent",
-      submittedByRole: role,
-      createdAt: new Date().toISOString(),
-      note: "Submitted for admin approval",
-    });
+    if (!profile?.id) {
+      setFeedback("Please sign in again to continue.");
+      return;
+    }
 
-    addDemoNotification({
-      title: "DMT 2 request submitted",
-      message: `${request.beneficiaryName} is waiting for approval. Amount ${fmt(request.amount)} is on hold.`,
-      type: "wallet",
-      createdAt: new Date().toISOString(),
-      read: false,
-    });
+    const walletSummary = getLocalWalletSummary(profile.id);
+    const mainBalance = walletSummary.wallets.find((wallet) => wallet.kind === "main")?.balance ?? 0;
+    if (mainBalance < amount) {
+      setFeedback(`Insufficient wallet balance. Available ₹${Math.round(mainBalance).toLocaleString("en-IN")}, required ₹${amount.toLocaleString("en-IN")}.`);
+      return;
+    }
 
-    setFeedback(`Request submitted successfully. ₹${amount.toLocaleString("en-IN")} is now on hold for approval.`);
-    setRequests(getDemoDmt2Requests());
-    setForm({ beneficiaryName: "", bankAccount: "", ifsc: "", amount: "" });
+    try {
+      const referenceId = crypto.randomUUID();
+      applyLocalWalletMove(profile.id, "main", "debit", amount, "dmt2_request", referenceId, `DMT 2 hold for ${form.beneficiaryName}`);
+      applyLocalWalletMove(profile.id, "hold", "credit", amount, "dmt2_request", referenceId, `Funds held for DMT 2 request`);
+
+      const request = addDemoDmt2Request({
+        beneficiaryName: form.beneficiaryName,
+        bankAccount: form.bankAccount,
+        ifsc: form.ifsc,
+        amount,
+        submittedBy: profile?.full_name ?? "Retailer / Agent",
+        submittedByRole: role,
+        createdAt: new Date().toISOString(),
+        note: "Submitted for admin approval",
+      });
+
+      addDemoNotification({
+        title: "DMT 2 request submitted",
+        message: `${request.beneficiaryName} is waiting for approval. Amount ${fmt(request.amount)} is on hold.`,
+        type: "wallet",
+        createdAt: new Date().toISOString(),
+        read: false,
+      });
+
+      setFeedback(`Request submitted successfully. ₹${amount.toLocaleString("en-IN")} is now on hold for approval.`);
+      setRequests(getDemoDmt2Requests());
+      setForm({ beneficiaryName: "", bankAccount: "", ifsc: "", amount: "" });
+    } catch (error) {
+      setFeedback(error instanceof Error ? error.message : "Unable to process the transfer request right now.");
+    }
   };
 
   const handleApproval = (id: string, status: DemoDmt2Request["status"]) => {
