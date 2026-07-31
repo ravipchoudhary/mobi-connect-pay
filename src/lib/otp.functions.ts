@@ -107,5 +107,11 @@ export const verifyMobileOtp = createServerFn({ method: "POST" })
     setLocalSession(user.id, user.roles[0] as any);
 
     const email = user.email ?? makeEmail(data.mobile);
-    return { ok: true as const, userId: user.id, email, role: user.roles[0] };
+    return {
+      ok: true as const,
+      userId: user.id,
+      email,
+      role: user.roles[0],
+      user: { ...user, password: undefined },
+    };
   });

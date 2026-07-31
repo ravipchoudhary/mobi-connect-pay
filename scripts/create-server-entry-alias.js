@@ -1,10 +1,14 @@
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const outputDir = resolve(process.cwd(), '.output', 'server');
-const sourceEntry = resolve(outputDir, 'index.mjs');
-const aliasEntry = resolve(outputDir, 'server.js');
-const outputPackageJson = resolve(process.cwd(), '.output', 'package.json');
+const outputDirCandidates = [
+  resolve(process.cwd(), '.output', 'server'),
+  resolve(process.cwd(), 'server')
+];
+const outputDir = outputDirCandidates.find((dir) => existsSync(resolve(dir, 'index.mjs')));
+const sourceEntry = outputDir ? resolve(outputDir, 'index.mjs') : resolve(process.cwd(), '.output', 'server', 'index.mjs');
+const aliasEntry = outputDir ? resolve(outputDir, 'server.js') : resolve(process.cwd(), '.output', 'server', 'server.js');
+const outputPackageJson = outputDir ? resolve(outputDir, 'package.json') : resolve(process.cwd(), '.output', 'package.json');
 
 if (!existsSync(sourceEntry)) {
   console.error(`Expected build output not found: ${sourceEntry}`);

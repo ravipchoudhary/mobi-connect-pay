@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
 import { verifyUsernamePassword } from "@/lib/username.functions";
-import { getLocalSession, isLocalSessionRecentlyCleared, setLocalSession, findLocalUserById, clearLocalSession } from "@/lib/local-store";
+import { getLocalSession, isLocalSessionRecentlyCleared, setLocalSession, findLocalUserById, clearLocalSession, upsertLocalUserRecord, type LocalUserRecord } from "@/lib/local-store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
@@ -64,6 +64,13 @@ function AuthPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
+  const persistAuthSession = (userId: string, role?: string, profile?: LocalUserRecord) => {
+    if (profile) {
+      upsertLocalUserRecord(profile);
+    }
+    setLocalSession(userId, role as any);
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -102,7 +109,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp, fullName: nameOverride } });
-      setLocalSession(res.userId, res.role);
+      persistAuthSession(res.userId, res.role, (res as { user?: LocalUserRecord }).user);
       toast.success("Welcome to Pay Solution");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
@@ -117,7 +124,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verify({ data: { mobile, code: otp } });
-      setLocalSession(res.userId, res.role);
+      persistAuthSession(res.userId, res.role, (res as { user?: LocalUserRecord }).user);
       toast.success("Welcome back!");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
@@ -146,7 +153,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const res = await verifyPassword({ data: { username: username.trim(), password } });
-      setLocalSession(res.userId, res.role);
+      persistAuthSession(res.userId, res.role, (res as { user?: LocalUserRecord }).user);
       toast.success("Welcome back!");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {

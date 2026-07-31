@@ -243,6 +243,17 @@ export async function createLocalUser(input: Omit<LocalUserRecord, "id" | "creat
   return user;
 }
 
+export function upsertLocalUserRecord(user: LocalUserRecord): LocalUserRecord {
+  const users = listLocalUsers();
+  const existingIndex = users.findIndex((candidate) => candidate.id === user.id);
+  const nextUsers = existingIndex >= 0
+    ? users.map((candidate) => (candidate.id === user.id ? { ...candidate, ...user } : candidate))
+    : [...users, user];
+
+  writeStorage(USERS_KEY, nextUsers);
+  return nextUsers.find((candidate) => candidate.id === user.id) ?? user;
+}
+
 export function updateLocalUser(userId: string, patch: Partial<LocalUserRecord>): LocalUserRecord | undefined {
   const users = listLocalUsers().map((user) => (user.id === userId ? { ...user, ...patch } : user));
   writeStorage(USERS_KEY, users);
