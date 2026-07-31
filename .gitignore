@@ -19,8 +19,6 @@ dist-ssr
 # Environment
 .env
 
-# Local database
-data/
 
 # Wrangler / Cloudflare
 .wrangler/
