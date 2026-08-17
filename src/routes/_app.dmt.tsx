@@ -22,7 +22,7 @@ function DMTPage() {
   const [status, setStatus] = useState<"idle" | "complete">("idle");
 
   const send = () => {
-    addDemoTransaction({ type: "Transfer", amount: Number(amount), status: "Success", reference: `TRF-${Math.floor(1000 + Math.random() * 9000)}`, customer: beneficiary, createdAt: new Date().toISOString(), channel: method, note: `Transfer via ${method}` });
+    addDemoTransaction({ type: "Transfer", amount: Number(amount), status: "Processed Successfully", reference: `TRF-${Math.floor(1000 + Math.random() * 9000)}`, customer: beneficiary, createdAt: new Date().toISOString(), channel: method, note: `Transfer via ${method}` });
     setStatus("complete");
   };
 

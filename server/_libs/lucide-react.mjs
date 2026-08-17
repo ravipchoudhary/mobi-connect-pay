@@ -138,6 +138,19 @@ var ArrowDownLeft = createLucideIcon("arrow-down-left", [["path", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var ArrowLeft = createLucideIcon("arrow-left", [["path", {
+	d: "m12 19-7-7 7-7",
+	key: "1l729n"
+}], ["path", {
+	d: "M19 12H5",
+	key: "x3x0zl"
+}]]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var ArrowRightLeft = createLucideIcon("arrow-right-left", [
 	["path", {
 		d: "m16 3 4 4-4 4",
@@ -329,6 +342,16 @@ var Check = createLucideIcon("check", [["path", {
 var ChevronDown = createLucideIcon("chevron-down", [["path", {
 	d: "m6 9 6 6 6-6",
 	key: "qrunsl"
+}]]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var ChevronLeft = createLucideIcon("chevron-left", [["path", {
+	d: "m15 18-6-6 6-6",
+	key: "1wnfg3"
 }]]);
 /**
 * @license lucide-react v0.575.0 - ISC
@@ -576,6 +599,30 @@ var DollarSign = createLucideIcon("dollar-sign", [["line", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var EyeOff = createLucideIcon("eye-off", [
+	["path", {
+		d: "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
+		key: "ct8e1f"
+	}],
+	["path", {
+		d: "M14.084 14.158a3 3 0 0 1-4.242-4.242",
+		key: "151rxh"
+	}],
+	["path", {
+		d: "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",
+		key: "13bj9a"
+	}],
+	["path", {
+		d: "m2 2 20 20",
+		key: "1ooewy"
+	}]
+]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var Eye = createLucideIcon("eye", [["path", {
 	d: "M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0",
 	key: "1nclc0"
@@ -711,6 +758,33 @@ var Funnel = createLucideIcon("funnel", [["path", {
 	d: "M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z",
 	key: "sc7q7i"
 }]]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
+var Image = createLucideIcon("image", [
+	["rect", {
+		width: "18",
+		height: "18",
+		x: "3",
+		y: "3",
+		rx: "2",
+		ry: "2",
+		key: "1m3agn"
+	}],
+	["circle", {
+		cx: "9",
+		cy: "9",
+		r: "2",
+		key: "af1f0g"
+	}],
+	["path", {
+		d: "m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
+		key: "1xmnt7"
+	}]
+]);
 /**
 * @license lucide-react v0.575.0 - ISC
 *
@@ -1226,6 +1300,34 @@ var ToggleRight = createLucideIcon("toggle-right", [["circle", {
 * This source code is licensed under the ISC license.
 * See the LICENSE file in the root directory of this source tree.
 */
+var Trash2 = createLucideIcon("trash-2", [
+	["path", {
+		d: "M10 11v6",
+		key: "nco0om"
+	}],
+	["path", {
+		d: "M14 11v6",
+		key: "outv1u"
+	}],
+	["path", {
+		d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
+		key: "miytrc"
+	}],
+	["path", {
+		d: "M3 6h18",
+		key: "d0wm0j"
+	}],
+	["path", {
+		d: "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+		key: "e791ji"
+	}]
+]);
+/**
+* @license lucide-react v0.575.0 - ISC
+*
+* This source code is licensed under the ISC license.
+* See the LICENSE file in the root directory of this source tree.
+*/
 var TrendingUp = createLucideIcon("trending-up", [["path", {
 	d: "M16 7h6v6",
 	key: "box55l"
@@ -1419,4 +1521,4 @@ var Zap = createLucideIcon("zap", [["path", {
 	key: "1xq2db"
 }]]);
 //#endregion
-export { ChevronRight as $, LoaderCircle as A, Eye as B, Plus as C, Minus as D, Moon as E, Funnel as F, Circle as G, CreditCard as H, FingerprintPattern as I, CirclePause as J, CircleX as K, FileText as L, LayoutDashboard as M, Landmark as N, LogOut as O, KeyRound as P, ChevronUp as Q, FileDown as R, Printer as S, PanelLeft as T, Copy as U, DollarSign as V, Clock3 as W, CircleCheck as X, CircleDollarSign as Y, CircleAlert as Z, Send as _, UserRound as a, BellRing as at, RefreshCw as b, Upload as c, ArrowUpRight as ct, Sun as d, ArrowDownLeft as dt, ChevronDown as et, Sparkles as f, Activity as ft, Settings as g, ShieldCheck as h, Users as i, Bell as it, LifeBuoy as j, Lock as k, TrendingUp as l, ArrowRight as lt, Shield as m, X as n, ChartColumn as nt, UserPlus as o, Banknote as ot, Smartphone as p, CircleUserRound as q, Wallet as r, Briefcase as rt, UserCog as s, BadgePercent as st, Zap as t, Check as tt, ToggleRight as u, ArrowRightLeft as ut, Search as v, PiggyBank as w, Receipt as x, ScrollText as y, FileCheckCorner as z };
+export { CircleCheck as $, Lock as A, FileDown as B, Printer as C, Moon as D, PanelLeft as E, KeyRound as F, CreditCard as G, Eye as H, Image as I, Circle as J, Copy as K, Funnel as L, LifeBuoy as M, LayoutDashboard as N, Minus as O, Landmark as P, CircleDollarSign as Q, FingerprintPattern as R, Receipt as S, PiggyBank as T, EyeOff as U, FileCheckCorner as V, DollarSign as W, CircleUserRound as X, CircleX as Y, CirclePause as Z, Settings as _, Activity as _t, UserRound as a, Check as at, ScrollText as b, Upload as c, Bell as ct, ToggleRight as d, BadgePercent as dt, CircleAlert as et, Sun as f, ArrowUpRight as ft, ShieldCheck as g, ArrowDownLeft as gt, Shield as h, ArrowLeft as ht, Users as i, ChevronDown as it, LoaderCircle as j, LogOut as k, TrendingUp as l, BellRing as lt, Smartphone as m, ArrowRightLeft as mt, X as n, ChevronRight as nt, UserPlus as o, ChartColumn as ot, Sparkles as p, ArrowRight as pt, Clock3 as q, Wallet as r, ChevronLeft as rt, UserCog as s, Briefcase as st, Zap as t, ChevronUp as tt, Trash2 as u, Banknote as ut, Send as v, Plus as w, RefreshCw as x, Search as y, FileText as z };

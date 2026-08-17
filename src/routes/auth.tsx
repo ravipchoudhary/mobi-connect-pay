@@ -14,6 +14,8 @@ import {
   KeyRound,
   UserCircle2,
   Loader2,
+  ArrowLeft,
+  Mail,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { sendMobileOtp, verifyMobileOtp } from "@/lib/otp.functions";
-import { verifyUsernamePassword } from "@/lib/username.functions";
+import { loginWithUsernamePassword, verifyEmailOtp, resendEmailOtp } from "@/lib/username.functions";
 import { getLocalSession, isLocalSessionRecentlyCleared, setLocalSession, findLocalUserById, clearLocalSession, upsertLocalUserRecord, type LocalUserRecord } from "@/lib/local-store";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
@@ -44,7 +46,8 @@ export const Route = createFileRoute("/auth")({
   },
 });
 
-type Step = "mobile" | "otp" | "name";
+type MobileStep = "mobile" | "otp" | "name";
+type UsernameStep = "credentials" | "verify-otp";
 
 const mobileSchema = z.string().regex(/^[6-9]\d{9}$/u, "Enter a valid 10-digit Indian mobile number");
 
@@ -52,17 +55,28 @@ function AuthPage() {
   const navigate = useNavigate();
   const send = useServerFn(sendMobileOtp);
   const verify = useServerFn(verifyMobileOtp);
-  const verifyPassword = useServerFn(verifyUsernamePassword);
+  const loginPassword = useServerFn(loginWithUsernamePassword);
+  const verifyOtp = useServerFn(verifyEmailOtp);
+  const resendOtp = useServerFn(resendEmailOtp);
 
-  const [step, setStep] = useState<Step>("mobile");
+  // Mobile flow state
+  const [mobileStep, setMobileStep] = useState<MobileStep>("mobile");
   const [mobile, setMobile] = useState("");
   const [otp, setOtp] = useState("");
   const [fullName, setFullName] = useState("");
+  
+  // Username flow state
+  const [usernameStep, setUsernameStep] = useState<UsernameStep>("credentials");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [otpSessionId, setOtpSessionId] = useState<string | null>(null);
+  const [maskedEmail, setMaskedEmail] = useState<string | null>(null);
+  const [emailOtp, setEmailOtp] = useState("");
+  
+  // Common state
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
   const [devOtp, setDevOtp] = useState<string | null>(null);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
 
   const persistAuthSession = (userId: string, role?: string, profile?: LocalUserRecord) => {
     if (profile) {
@@ -82,12 +96,14 @@ function AuthPage() {
     }
   }, [navigate]);
 
+  // Mobile OTP countdown
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
 
+  // MOBILE OTP FLOW
   const handleSendOtp = async (isResend = false) => {
     const parsed = mobileSchema.safeParse(mobile);
     if (!parsed.success) return toast.error(parsed.error.issues[0].message);
@@ -96,7 +112,7 @@ function AuthPage() {
       const res = await send({ data: { mobile } });
       setDevOtp(res.devOtp ?? null);
       setResendIn(30);
-      if (!isResend) setStep("otp");
+      if (!isResend) setMobileStep("otp");
       toast.success(`OTP sent to +91 ${mobile}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to send OTP");
@@ -105,21 +121,7 @@ function AuthPage() {
     }
   };
 
-  const finishSignIn = async (nameOverride?: string) => {
-    setLoading(true);
-    try {
-      const res = await verify({ data: { mobile, code: otp, fullName: nameOverride } });
-      persistAuthSession(res.userId, res.role, (res as { user?: LocalUserRecord }).user);
-      toast.success("Welcome to Pay Solution");
-      navigate({ to: "/dashboard", replace: true });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Verification failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
+  const handleVerifyMobileOtp = async () => {
     if (otp.length !== 6) return toast.error("Enter the 6-digit OTP");
     setLoading(true);
     try {
@@ -134,33 +136,78 @@ function AuthPage() {
     }
   };
 
-  const submitName = async () => {
-    if (fullName.trim().length < 2) return toast.error("Enter your full name");
+  // USERNAME + EMAIL OTP FLOW
+  const handleLoginWithPassword = async () => {
+    if (!username.trim()) return toast.error("Enter your username");
+    if (!password) return toast.error("Enter your password");
+
     setLoading(true);
     try {
-      toast.success("Account ready");
-      navigate({ to: "/dashboard", replace: true });
+      const res = await loginPassword({ data: { username: username.trim(), password } });
+      
+      // Credentials valid, OTP sent
+      setOtpSessionId(res.otpSessionId);
+      setMaskedEmail(res.maskedEmail);
+      setEmailOtp("");
+      setResendIn(30);
+      setUsernameStep("verify-otp");
+      
+      toast.success("Verification code sent to your email");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save details");
+      toast.error(e instanceof Error ? e.message : "Login failed");
     } finally {
       setLoading(false);
     }
   };
 
-  const submitPassword = async () => {
-    if (username.trim().length < 2) return toast.error("Enter your username");
-    if (password.length < 6) return toast.error("Enter your password");
+  const handleVerifyEmailOtp = async () => {
+    if (!otpSessionId) return toast.error("Session expired");
+    if (emailOtp.length !== 6) return toast.error("Enter the 6-digit code");
+
     setLoading(true);
     try {
-      const res = await verifyPassword({ data: { username: username.trim(), password } });
-      persistAuthSession(res.userId, res.role, (res as { user?: LocalUserRecord }).user);
+      const res = await verifyOtp({
+        data: {
+          otpSessionId,
+          otp: emailOtp,
+        },
+      });
+      
+      persistAuthSession(res.userId, res.role, res.user);
       toast.success("Welcome back!");
       navigate({ to: "/dashboard", replace: true });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Sign-in failed");
+      toast.error(e instanceof Error ? e.message : "Verification failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleResendEmailOtp = async () => {
+    if (!otpSessionId) return toast.error("Session expired");
+    if (resendIn > 0) return;
+
+    setLoading(true);
+    try {
+      const res = await resendOtp({ data: { otpSessionId } });
+      setOtpSessionId(res.otpSessionId);
+      setMaskedEmail(res.maskedEmail);
+      setEmailOtp("");
+      setResendIn(30);
+      toast.success("New verification code sent");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to resend code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBackToCredentials = () => {
+    setUsernameStep("credentials");
+    setOtpSessionId(null);
+    setMaskedEmail(null);
+    setEmailOtp("");
+    setResendIn(0);
   };
 
   return (
@@ -173,115 +220,167 @@ function AuthPage() {
               <TabsTrigger value="mobile">Mobile OTP</TabsTrigger>
               <TabsTrigger value="username">Username</TabsTrigger>
             </TabsList>
+            
+            {/* MOBILE OTP TAB */}
             <TabsContent value="mobile">
-              <StepIndicator step={step} />
-          <AnimatePresence mode="wait">
-            {step === "mobile" && (
-              <StepShell key="mobile" title="Sign in to Pay Solution" subtitle="Enter your mobile number to receive a secure OTP.">
-                <div className="space-y-2">
-                  <Label htmlFor="mobile">Mobile number</Label>
-                  <div className="flex items-center rounded-xl border border-input bg-card px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 transition">
-                    <span className="text-sm font-medium text-muted-foreground pr-2 border-r border-border">+91</span>
-                    <Input
-                      id="mobile"
-                      inputMode="numeric"
-                      autoFocus
-                      placeholder="9876543210"
-                      value={mobile}
-                      onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                      onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
-                      className="border-0 bg-transparent focus-visible:ring-0 shadow-none h-12 text-base tracking-wide"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground pt-1">We'll send a 6-digit code. Message rates may apply.</p>
-                </div>
-                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={() => handleSendOtp()}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Send OTP <ArrowRight className="h-4 w-4" /></>)}
-                </Button>
-                <p className="text-center text-xs text-muted-foreground">
-                  By continuing you agree to our <a className="text-primary hover:underline">Terms</a> and <a className="text-primary hover:underline">Privacy Policy</a>.
-                </p>
-              </StepShell>
-            )}
-
-            {step === "otp" && (
-              <StepShell
-                key="otp"
-                title="Verify OTP"
-                subtitle={<>Enter the 6-digit code sent to <span className="font-medium text-foreground">+91 {mobile}</span></>}
-              >
-                <div className="flex justify-center">
-                  <InputOTP maxLength={6} value={otp} onChange={setOtp}>
-                    <InputOTPGroup>
-                      {[0, 1, 2, 3, 4, 5].map((i) => (
-                        <InputOTPSlot key={i} index={i} className="h-14 w-12 text-lg" />
-                      ))}
-                    </InputOTPGroup>
-                  </InputOTP>
-                </div>
-                {devOtp && (
-                  <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-center text-xs text-muted-foreground">
-                    Dev preview OTP: <span className="font-mono font-semibold text-primary">{devOtp}</span>
-                  </div>
+              <StepIndicator step={mobileStep} />
+              <AnimatePresence mode="wait">
+                {mobileStep === "mobile" && (
+                  <StepShell key="mobile" title="Sign in to Pay Solution" subtitle="Enter your mobile number to receive a secure OTP.">
+                    <div className="space-y-2">
+                      <Label htmlFor="mobile">Mobile number</Label>
+                      <div className="flex items-center rounded-xl border border-input bg-card px-3 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 transition">
+                        <span className="text-sm font-medium text-muted-foreground pr-2 border-r border-border">+91</span>
+                        <Input
+                          id="mobile"
+                          inputMode="numeric"
+                          autoFocus
+                          placeholder="9876543210"
+                          value={mobile}
+                          onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                          onKeyDown={(e) => e.key === "Enter" && handleSendOtp()}
+                          className="border-0 bg-transparent focus-visible:ring-0 shadow-none h-12 text-base tracking-wide"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground pt-1">We'll send a 6-digit code. Message rates may apply.</p>
+                    </div>
+                    <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={() => handleSendOtp()}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Send OTP <ArrowRight className="h-4 w-4" /></>)}
+                    </Button>
+                    <p className="text-center text-xs text-muted-foreground">
+                      By continuing you agree to our <a className="text-primary hover:underline">Terms</a> and <a className="text-primary hover:underline">Privacy Policy</a>.
+                    </p>
+                  </StepShell>
                 )}
-                <div className="flex items-center justify-between text-sm">
-                  <button type="button" className="text-muted-foreground hover:text-foreground transition" onClick={() => setStep("mobile")}>Change number</button>
-                  <button type="button" disabled={resendIn > 0} onClick={() => handleSendOtp(true)} className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline">
-                    {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend OTP"}
-                  </button>
-                </div>
-                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={handleVerifyOtp}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Continue"}
-                </Button>
-              </StepShell>
-            )}
 
-            {step === "name" && (
-              <StepShell key="name" title="Complete your profile" subtitle="Just your name — you can add KYC details from Settings later.">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full name</Label>
-                  <Input id="fullName" autoFocus placeholder="Rohan Sharma" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12" />
-                </div>
-                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={submitName}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Finish <ArrowRight className="h-4 w-4" /></>)}
-                </Button>
-              </StepShell>
-            )}
-          </AnimatePresence>
+                {mobileStep === "otp" && (
+                  <StepShell
+                    key="otp"
+                    title="Verify OTP"
+                    subtitle={<>Enter the 6-digit code sent to <span className="font-medium text-foreground">+91 {mobile}</span></>}
+                  >
+                    <div className="flex justify-center">
+                      <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                        <InputOTPGroup>
+                          {[0, 1, 2, 3, 4, 5].map((i) => (
+                            <InputOTPSlot key={i} index={i} className="h-14 w-12 text-lg" />
+                          ))}
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    {devOtp && (
+                      <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 px-3 py-2 text-center text-xs text-muted-foreground">
+                        Dev preview OTP: <span className="font-mono font-semibold text-primary">{devOtp}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between text-sm">
+                      <button type="button" className="text-muted-foreground hover:text-foreground transition" onClick={() => setMobileStep("mobile")}>Change number</button>
+                      <button type="button" disabled={resendIn > 0} onClick={() => handleSendOtp(true)} className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline">
+                        {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend OTP"}
+                      </button>
+                    </div>
+                    <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={handleVerifyMobileOtp}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Continue"}
+                    </Button>
+                  </StepShell>
+                )}
+
+                {mobileStep === "name" && (
+                  <StepShell key="name" title="Complete your profile" subtitle="Just your name — you can add KYC details from Settings later.">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full name</Label>
+                      <Input id="fullName" autoFocus placeholder="Rohan Sharma" value={fullName} onChange={(e) => setFullName(e.target.value)} className="h-12" />
+                    </div>
+                    <Button variant="hero" size="xl" className="w-full" disabled={loading}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Finish <ArrowRight className="h-4 w-4" /></>)}
+                    </Button>
+                  </StepShell>
+                )}
+              </AnimatePresence>
             </TabsContent>
+
+            {/* USERNAME + EMAIL OTP TAB */}
             <TabsContent value="username">
-              <StepShell
-                title="Sign in with username"
-                subtitle="For admin and staff accounts. Retailers should use Mobile OTP."
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="uname">Username</Label>
-                  <Input
-                    id="uname"
-                    autoComplete="username"
-                    placeholder="ravipchy"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="h-12"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="pwd">Password</Label>
-                  <Input
-                    id="pwd"
-                    type="password"
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitPassword()}
-                    className="h-12"
-                  />
-                </div>
-                <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={submitPassword}>
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Sign in <ArrowRight className="h-4 w-4" /></>)}
-                </Button>
-              </StepShell>
+              <AnimatePresence mode="wait">
+                {usernameStep === "credentials" && (
+                  <StepShell
+                    key="credentials"
+                    title="Sign in with username"
+                    subtitle="For admin and staff accounts. Retailers should use Mobile OTP."
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor="uname">Username</Label>
+                      <Input
+                        id="uname"
+                        autoComplete="username"
+                        autoFocus
+                        placeholder="superadmin"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="h-12"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pwd">Password</Label>
+                      <Input
+                        id="pwd"
+                        type="password"
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleLoginWithPassword()}
+                        className="h-12"
+                      />
+                    </div>
+                    <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={handleLoginWithPassword}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : (<>Sign in <ArrowRight className="h-4 w-4" /></>)}
+                    </Button>
+                  </StepShell>
+                )}
+
+                {usernameStep === "verify-otp" && maskedEmail && (
+                  <StepShell
+                    key="verify-otp"
+                    title="Verify Your Email"
+                    subtitle={<>We've sent a verification code to <span className="font-medium text-foreground">{maskedEmail}</span></>}
+                  >
+                    <div className="flex justify-center">
+                      <InputOTP maxLength={6} value={emailOtp} onChange={setEmailOtp}>
+                        <InputOTPGroup>
+                          {[0, 1, 2, 3, 4, 5].map((i) => (
+                            <InputOTPSlot key={i} index={i} className="h-14 w-12 text-lg" />
+                          ))}
+                        </InputOTPGroup>
+                      </InputOTP>
+                    </div>
+                    <p className="text-xs text-muted-foreground text-center pt-2">
+                      Check your registered email for the 6-digit verification code
+                    </p>
+                    <div className="flex items-center justify-between text-sm pt-4">
+                      <button
+                        type="button"
+                        className="text-muted-foreground hover:text-foreground transition flex items-center gap-1"
+                        onClick={handleBackToCredentials}
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        disabled={resendIn > 0}
+                        onClick={handleResendEmailOtp}
+                        className="text-primary hover:underline disabled:text-muted-foreground disabled:no-underline transition"
+                      >
+                        {resendIn > 0 ? `Resend in ${resendIn}s` : "Resend code"}
+                      </button>
+                    </div>
+                    <Button variant="hero" size="xl" className="w-full" disabled={loading} onClick={handleVerifyEmailOtp}>
+                      {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verify & Continue"}
+                    </Button>
+                  </StepShell>
+                )}
+              </AnimatePresence>
             </TabsContent>
           </Tabs>
         </div>
@@ -322,8 +421,8 @@ function HeroPanel() {
   );
 }
 
-function StepIndicator({ step }: { step: Step }) {
-  const steps: { key: Step; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+function StepIndicator({ step }: { step: MobileStep }) {
+  const steps: { key: MobileStep; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { key: "mobile", label: "Mobile", icon: Smartphone },
     { key: "otp", label: "OTP", icon: KeyRound },
     { key: "name", label: "Profile", icon: UserCircle2 },

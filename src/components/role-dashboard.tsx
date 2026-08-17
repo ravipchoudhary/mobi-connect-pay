@@ -5,7 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/hooks/use-session";
-import { getDemoActivity, getDemoNotifications, getDemoPermissions, getDemoTransactions, getDemoWalletSummary } from "@/lib/demo-data";
+import { getDemoActivity, getDemoNotifications, getDemoPermissions, getDemoTransactions, getDemoWalletSummary, getDemoSliderImages } from "@/lib/demo-data";
+import { ImageSlider } from "@/components/image-slider";
 
 const fmt = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
@@ -27,9 +28,17 @@ export function RoleDashboard() {
 }
 
 function SuperAdminDashboard({ name, summary, transactions, notifications, activity, permissions }: any) {
+  const sliderImages = getDemoSliderImages();
+  
   return (
     <div className="space-y-6">
       <Hero title={`Enterprise Control Panel`} subtitle={`Welcome back, ${name}. Manage revenue, users, wallets and settlements from one panel.`} accent="from-indigo-600 to-violet-500" />
+      
+      {/* Image Slider */}
+      {sliderImages.length > 0 && (
+        <ImageSlider images={sliderImages} autoPlay={true} autoPlayInterval={6000} />
+      )}
+      
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Total Revenue", value: fmt(1280000), icon: CircleDollarSign, tint: "bg-indigo-500" },
@@ -53,7 +62,7 @@ function SuperAdminDashboard({ name, summary, transactions, notifications, activ
             <Badge variant="secondary">{summary.txCount} total</Badge>
           </div>
           <div className="space-y-3">
-            {transactions.slice(0, 5).map((tx: any) => <div key={tx.id} className="flex items-center justify-between rounded-2xl border p-3"><div><div className="font-medium">{tx.type}</div><div className="text-xs text-muted-foreground">{tx.customer} · {tx.reference}</div></div><div className="text-right"><div className="font-semibold">{fmt(tx.amount)}</div><Badge variant={tx.status === "Success" ? "default" : tx.status === "Pending" ? "secondary" : "destructive"}>{tx.status}</Badge></div></div>)}
+            {transactions.slice(0, 5).map((tx: any) => <div key={tx.id} className="flex items-center justify-between rounded-2xl border p-3"><div><div className="font-medium">{tx.type}</div><div className="text-xs text-muted-foreground">{tx.customer} · {tx.reference}</div></div><div className="text-right"><div className="font-semibold">{fmt(tx.amount)}</div><Badge variant={tx.status === "Processed Successfully" ? "default" : tx.status === "Pending" ? "secondary" : "destructive"}>{tx.status}</Badge></div></div>)}
           </div>
         </Card>
         <Card className="p-5">

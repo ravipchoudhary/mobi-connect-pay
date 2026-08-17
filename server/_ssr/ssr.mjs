@@ -1,4 +1,5 @@
 import { t as renderErrorPage } from "./error-page-DPAiK6Uh.mjs";
+import "../_libs/dotenv.mjs";
 //#region node_modules/.nitro/vite/services/ssr/index.js
 var lastCapturedError;
 var TTL_MS = 5e3;
@@ -24,7 +25,7 @@ function consumeLastCapturedError() {
 }
 var serverEntryPromise;
 async function getServerEntry() {
-	if (!serverEntryPromise) serverEntryPromise = import("./server-DrAuaX5g.mjs").then((m) => m.default ?? m);
+	if (!serverEntryPromise) serverEntryPromise = import("./server-oP2ArhrE.mjs").then((m) => m.default ?? m);
 	return serverEntryPromise;
 }
 async function normalizeCatastrophicSsrResponse(response) {

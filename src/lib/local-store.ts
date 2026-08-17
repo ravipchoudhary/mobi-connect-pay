@@ -49,11 +49,28 @@ export interface LocalLedgerEntry {
   created_at: string;
 }
 
+export interface OtpSession {
+  id: string;
+  userId: string;
+  otpHash: string;
+  email: string;
+  maskedEmail: string;
+  expiresAt: number;
+  attempts: number;
+  maxAttempts: number;
+  verifiedAt: number | null;
+  createdAt: number;
+  ipAddress?: string;
+  userAgent?: string;
+  resendCooldownUntil: number;
+}
+
 const USERS_KEY = "mobi-connect-local-users";
 const WALLETS_KEY = "mobi-connect-local-wallets";
 const LEDGER_KEY = "mobi-connect-local-ledger";
 const SESSION_KEY = "mobi-connect-local-session";
 const SESSION_CLEARED_KEY = "mobi-connect-local-session-cleared";
+const OTP_SESSIONS_KEY = "mobi-connect-otp-sessions";
 export const LOCAL_SESSION_CHANGED_EVENT = "local-session-changed";
 
 interface StoreState {
@@ -61,6 +78,7 @@ interface StoreState {
   wallets: LocalWalletRecord[];
   ledger: LocalLedgerEntry[];
   session: { userId: string; role?: Role } | null;
+  otpSessions: OtpSession[];
 }
 
 const store: StoreState = {
@@ -68,6 +86,7 @@ const store: StoreState = {
   wallets: [],
   ledger: [],
   session: null,
+  otpSessions: [],
 };
 
 let hydrated = false;
@@ -101,7 +120,7 @@ function getSeedUser(now: string): LocalUserRecord {
     id: "demo-admin",
     full_name: "Super Admin",
     mobile: "9999999999",
-    email: "admin@paysol.local",
+    email: "info@paysol.in",
     // SHA-256 hash of "password"
     password: "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8",
     username: "superadmin",
@@ -131,6 +150,8 @@ function loadFromStorage() {
       if (ledger) store.ledger = JSON.parse(ledger) as LocalLedgerEntry[];
       const session = window.localStorage.getItem(SESSION_KEY);
       if (session) store.session = JSON.parse(session) as { userId: string; role?: Role } | null;
+      const otpSessions = window.localStorage.getItem(OTP_SESSIONS_KEY);
+      if (otpSessions) store.otpSessions = JSON.parse(otpSessions) as OtpSession[];
     } catch {
       // ignore and fall back to defaults
     }
@@ -143,11 +164,13 @@ function loadFromStorage() {
           wallets?: LocalWalletRecord[];
           ledger?: LocalLedgerEntry[];
           session?: { userId: string; role?: Role } | null;
+          otpSessions?: OtpSession[];
         };
         if (parsed.users) store.users = parsed.users as LocalUserRecord[];
         if (parsed.wallets) store.wallets = parsed.wallets;
         if (parsed.ledger) store.ledger = parsed.ledger;
         store.session = parsed.session ?? null;
+        if (parsed.otpSessions) store.otpSessions = parsed.otpSessions;
       }
     } catch {
       // ignore and fall back to defaults
@@ -164,8 +187,16 @@ function loadFromStorage() {
       { user_id: seedUser.id, kind: "hold", balance: 0 },
     ];
     store.ledger = [];
-    // Persist seeded state in both browser and server runtimes.
     persistState();
+  }
+
+  if (typeof window !== "undefined") {
+    const existingWallets = window.localStorage.getItem(WALLETS_KEY);
+    if (existingWallets) {
+      const parsedWallets = JSON.parse(existingWallets) as LocalWalletRecord[];
+      store.wallets = parsedWallets.filter((wallet) => wallet && typeof wallet.balance === "number");
+      persistState();
+    }
   }
 }
 
@@ -180,6 +211,7 @@ function persistState() {
             wallets: store.wallets,
             ledger: store.ledger,
             session: store.session,
+            otpSessions: store.otpSessions,
           }),
           "utf-8",
         );
@@ -198,6 +230,11 @@ function persistState() {
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(store.session));
     } else {
       window.localStorage.removeItem(SESSION_KEY);
+    }
+    if (store.otpSessions.length > 0) {
+      window.localStorage.setItem(OTP_SESSIONS_KEY, JSON.stringify(store.otpSessions));
+    } else {
+      window.localStorage.removeItem(OTP_SESSIONS_KEY);
     }
   } catch {
     // ignore storage write failures
@@ -271,6 +308,8 @@ function readStorage<T>(key: string, fallback: T): T {
       return store.ledger as T;
     case SESSION_KEY:
       return (store.session as T);
+    case OTP_SESSIONS_KEY:
+      return store.otpSessions as T;
     default:
       return fallback;
   }
@@ -290,6 +329,9 @@ function writeStorage<T>(key: string, value: T) {
       break;
     case SESSION_KEY:
       store.session = value as { userId: string; role?: Role } | null;
+      break;
+    case OTP_SESSIONS_KEY:
+      store.otpSessions = value as OtpSession[];
       break;
   }
   persistState();
@@ -426,9 +468,20 @@ export function getLocalWallets(userId: string): LocalWalletRecord[] {
 }
 
 export function getLocalWalletSummary(userId: string) {
+  loadFromStorage();
   const wallets = getLocalWallets(userId);
+  const normalizedWallets = (wallets.length > 0 ? wallets : [
+    { user_id: userId, kind: "main" as const, balance: 0 },
+    { user_id: userId, kind: "commission" as const, balance: 0 },
+    { user_id: userId, kind: "hold" as const, balance: 0 },
+  ]).map((wallet) => ({ ...wallet, balance: Number(wallet.balance) || 0 }));
+
+  if (wallets.length === 0 && typeof window !== "undefined") {
+    writeStorage(WALLETS_KEY, normalizedWallets);
+  }
+
   return {
-    wallets,
+    wallets: normalizedWallets,
     ledger: readStorage<LocalLedgerEntry[]>(LEDGER_KEY, []).filter((entry) => entry.user_id === userId).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 100),
   };
 }
@@ -470,4 +523,112 @@ export function applyLocalWalletMove(userId: string, kind: LocalWalletRecord["ki
   ledger.push(entry);
   writeStorage(LEDGER_KEY, ledger);
   return { ok: true as const };
+}
+
+// OTP Session Management
+
+function maskEmail(email: string): string {
+  const [localPart, domain] = email.split("@");
+  if (!localPart || !domain) return email;
+  const visible = Math.max(1, Math.ceil(localPart.length / 4));
+  const masked = localPart.slice(0, visible) + "*".repeat(Math.max(1, localPart.length - visible));
+  return `${masked}@${domain}`;
+}
+
+export async function hashOtp(otp: string): Promise<string> {
+  if (typeof crypto !== "undefined" && "subtle" in crypto) {
+    const bytes = new TextEncoder().encode(otp);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  if (typeof process !== "undefined" && process.versions?.node) {
+    const { createHash } = await import("crypto");
+    return createHash("sha256").update(otp).digest("hex");
+  }
+
+  throw new Error("Unable to hash OTP in this environment.");
+}
+
+export async function createOtpSession(
+  userId: string,
+  email: string,
+  otp: string,
+  options?: { ipAddress?: string; userAgent?: string }
+): Promise<OtpSession> {
+  const otpHash = await hashOtp(otp);
+  const now = Date.now();
+  const session: OtpSession = {
+    id: crypto.randomUUID(),
+    userId,
+    otpHash,
+    email,
+    maskedEmail: maskEmail(email),
+    expiresAt: now + 5 * 60 * 1000, // 5 minutes
+    attempts: 0,
+    maxAttempts: 5,
+    verifiedAt: null,
+    createdAt: now,
+    ipAddress: options?.ipAddress,
+    userAgent: options?.userAgent,
+    resendCooldownUntil: now + 30 * 1000, // 30 seconds cooldown
+  };
+
+  const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+  // Remove existing sessions for this user
+  const filtered = sessions.filter((s) => s.userId !== userId || s.expiresAt > now);
+  filtered.push(session);
+  writeStorage(OTP_SESSIONS_KEY, filtered);
+
+  return session;
+}
+
+export function getOtpSession(sessionId: string): OtpSession | undefined {
+  const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+  const now = Date.now();
+  return sessions.find((s) => s.id === sessionId && s.expiresAt > now);
+}
+
+export function getOtpSessionByUserId(userId: string): OtpSession | undefined {
+  const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+  const now = Date.now();
+  return sessions.find((s) => s.userId === userId && s.expiresAt > now && !s.verifiedAt);
+}
+
+export async function verifyOtpInSession(sessionId: string, otp: string): Promise<boolean> {
+  const session = getOtpSession(sessionId);
+  if (!session) return false;
+  if (session.verifiedAt !== null) return false;
+  if (session.attempts >= session.maxAttempts) return false;
+  if (session.expiresAt <= Date.now()) return false;
+
+  const otpHash = await hashOtp(otp);
+  const matches = otpHash === session.otpHash;
+
+  if (!matches) {
+    session.attempts++;
+    const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+    const updated = sessions.map((s) => (s.id === sessionId ? session : s));
+    writeStorage(OTP_SESSIONS_KEY, updated);
+  } else {
+    session.verifiedAt = Date.now();
+    const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+    const updated = sessions.map((s) => (s.id === sessionId ? session : s));
+    writeStorage(OTP_SESSIONS_KEY, updated);
+  }
+
+  return matches;
+}
+
+export function invalidateOtpSession(sessionId: string): void {
+  const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+  const filtered = sessions.filter((s) => s.id !== sessionId);
+  writeStorage(OTP_SESSIONS_KEY, filtered);
+}
+
+export function cleanupExpiredOtpSessions(): void {
+  const sessions = readStorage<OtpSession[]>(OTP_SESSIONS_KEY, []);
+  const now = Date.now();
+  const filtered = sessions.filter((s) => s.expiresAt > now);
+  writeStorage(OTP_SESSIONS_KEY, filtered);
 }

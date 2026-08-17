@@ -30,7 +30,7 @@ function ReportsPage() {
         <div className="mt-6 overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">
             <thead><tr className="text-left text-xs uppercase tracking-wider text-muted-foreground"><th className="pb-2">Date</th><th className="pb-2">Type</th><th className="pb-2">Customer</th><th className="pb-2">Reference</th><th className="pb-2">Amount</th><th className="pb-2">Status</th></tr></thead>
-            <tbody className="divide-y divide-border">{filtered.map((item) => <tr key={item.id} className="hover:bg-accent/40"><td className="py-3 text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("en-IN")}</td><td className="py-3 font-medium">{item.type}</td><td className="py-3">{item.customer}</td><td className="py-3">{item.reference}</td><td className="py-3">₹{item.amount}</td><td className="py-3"><Badge variant={item.status === "Success" ? "default" : item.status === "Pending" ? "secondary" : "destructive"}>{item.status}</Badge></td></tr>)}</tbody>
+            <tbody className="divide-y divide-border">{filtered.map((item) => <tr key={item.id} className="hover:bg-accent/40"><td className="py-3 text-muted-foreground">{new Date(item.createdAt).toLocaleDateString("en-IN")}</td><td className="py-3 font-medium">{item.type}</td><td className="py-3">{item.customer}</td><td className="py-3">{item.reference}</td><td className="py-3">₹{item.amount}</td><td className="py-3"><Badge variant={item.status === "Processed Successfully" ? "default" : item.status === "Pending" ? "secondary" : "destructive"}>{item.status}</Badge></td></tr>)}</tbody>
           </table>
         </div>
       </Card>

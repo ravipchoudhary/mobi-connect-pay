@@ -23,7 +23,7 @@ function BBPSPage() {
 
   const fetchBill = () => setStatus("fetched");
   const payBill = () => {
-    addDemoTransaction({ type: "BBPS", amount: Number(amount), status: "Success", reference: `BPS-${Math.floor(1000 + Math.random() * 9000)}`, customer: consumer, createdAt: new Date().toISOString(), channel: operator, note: `${operator} bill payment` });
+    addDemoTransaction({ type: "BBPS", amount: Number(amount), status: "Processed Successfully", reference: `BPS-${Math.floor(1000 + Math.random() * 9000)}`, customer: consumer, createdAt: new Date().toISOString(), channel: operator, note: `${operator} bill payment` });
     setStatus("paid");
   };
 

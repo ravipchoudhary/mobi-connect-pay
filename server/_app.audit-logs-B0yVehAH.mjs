@@ -2,7 +2,7 @@ import { o as __toESM } from "./_runtime.mjs";
 import { u as require_react } from "./_libs/@floating-ui/react-dom+[...].mjs";
 import { c as require_jsx_runtime } from "./_libs/@radix-ui/react-arrow+[...].mjs";
 import { t as Input } from "./_ssr/input-B8Q2ztVi.mjs";
-import { v as Search, y as ScrollText } from "./_libs/lucide-react.mjs";
+import { b as ScrollText, y as Search } from "./_libs/lucide-react.mjs";
 import { t as Card } from "./_ssr/card-CzXpCsbD.mjs";
 import { t as Badge } from "./_ssr/badge-D1Dupn2y.mjs";
 //#region node_modules/.nitro/vite/services/ssr/assets/_app.audit-logs-B0yVehAH.js

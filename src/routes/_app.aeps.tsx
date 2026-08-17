@@ -23,7 +23,7 @@ function AEPSPage() {
   const [status, setStatus] = useState<"idle" | "complete">("idle");
 
   const runTransaction = () => {
-    addDemoTransaction({ type: "AEPS", amount: Number(amount), status: "Success", reference: `AEP-${Math.floor(1000 + Math.random() * 9000)}`, customer: "Aadhaar Customer", createdAt: new Date().toISOString(), channel: bank, note: `${mode} through ${bank}` });
+    addDemoTransaction({ type: "AEPS", amount: Number(amount), status: "Processed Successfully", reference: `AEP-${Math.floor(1000 + Math.random() * 9000)}`, customer: "Aadhaar Customer", createdAt: new Date().toISOString(), channel: bank, note: `${mode} through ${bank}` });
     setStatus("complete");
   };
 

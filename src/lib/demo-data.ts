@@ -4,7 +4,7 @@ export interface DemoTransaction {
   id: string;
   type: "Recharge" | "BBPS" | "AEPS" | "Transfer" | "Settlement" | "Commission";
   amount: number;
-  status: "Success" | "Pending" | "Failed";
+  status: "Processed Successfully" | "Pending" | "Failed" | "Refunded" | "Cancelled";
   reference: string;
   customer: string;
   createdAt: string;
@@ -48,6 +48,15 @@ export interface DemoPermission {
   access: boolean;
 }
 
+export interface DemoSliderImage {
+  id: string;
+  title: string;
+  description?: string;
+  imageUrl: string;
+  link?: string;
+  active: boolean;
+}
+
 export interface DemoActivityItem {
   id: string;
   title: string;
@@ -65,7 +74,7 @@ export interface DemoDmt2Request {
   submittedByRole: DemoRole;
   createdAt: string;
   note?: string;
-  status: "PendingApproval" | "Approved" | "Rejected" | "Completed";
+  status: "Pending" | "Approved" | "Rejected" | "Processed Successfully";
   lastUpdatedAt?: string;
 }
 
@@ -77,6 +86,7 @@ const STORAGE_KEYS = {
   permissions: "mobi-connect-demo-permissions",
   activity: "mobi-connect-demo-activity",
   dmt2Requests: "mobi-connect-demo-dmt2-requests",
+  sliderImages: "mobi-connect-slider-images",
 };
 
 const isBrowser = () => typeof window !== "undefined";
@@ -100,10 +110,10 @@ function seedIfNeeded() {
   const transactions = readStorage<DemoTransaction[]>(STORAGE_KEYS.transactions, []);
   if (transactions.length === 0) {
     writeStorage(STORAGE_KEYS.transactions, [
-      { id: crypto.randomUUID(), type: "Recharge", amount: 499, status: "Success", reference: "RCH-1042", customer: "Asha Sharma", createdAt: "2026-07-14T09:10:00Z", channel: "Mobile", note: "Jio prepaid top-up" },
+      { id: crypto.randomUUID(), type: "Recharge", amount: 499, status: "Processed Successfully", reference: "RCH-1042", customer: "Asha Sharma", createdAt: "2026-07-14T09:10:00Z", channel: "Mobile", note: "Jio prepaid top-up" },
       { id: crypto.randomUUID(), type: "BBPS", amount: 1280, status: "Pending", reference: "BPS-2041", customer: "Ravi Kumar", createdAt: "2026-07-14T08:40:00Z", channel: "Electricity", note: "Electricity bill" },
-      { id: crypto.randomUUID(), type: "AEPS", amount: 2500, status: "Success", reference: "AEP-3051", customer: "Mona Das", createdAt: "2026-07-13T17:25:00Z", channel: "Cash Withdrawal", note: "Withdrawal" },
-      { id: crypto.randomUUID(), type: "Transfer", amount: 15000, status: "Success", reference: "TRF-4002", customer: "Self Transfer", createdAt: "2026-07-13T14:55:00Z", channel: "Wallet", note: "To commission wallet" },
+      { id: crypto.randomUUID(), type: "AEPS", amount: 2500, status: "Processed Successfully", reference: "AEP-3051", customer: "Mona Das", createdAt: "2026-07-13T17:25:00Z", channel: "Cash Withdrawal", note: "Withdrawal" },
+      { id: crypto.randomUUID(), type: "Transfer", amount: 15000, status: "Processed Successfully", reference: "TRF-4002", customer: "Self Transfer", createdAt: "2026-07-13T14:55:00Z", channel: "Wallet", note: "To commission wallet" },
       { id: crypto.randomUUID(), type: "Settlement", amount: 28000, status: "Pending", reference: "STL-5109", customer: "Distributor Ops", createdAt: "2026-07-12T20:12:00Z", channel: "Bank", note: "Daily settlement" },
     ]);
   }
@@ -173,7 +183,7 @@ function seedIfNeeded() {
         submittedByRole: "retailer",
         createdAt: "2026-07-15T10:30:00Z",
         note: "Initial request",
-        status: "PendingApproval",
+        status: "Pending",
       },
       {
         id: crypto.randomUUID(),
@@ -185,7 +195,7 @@ function seedIfNeeded() {
         submittedByRole: "agent",
         createdAt: "2026-07-15T09:10:00Z",
         note: "Approved earlier",
-        status: "Approved",
+        status: "Processed Successfully",
         lastUpdatedAt: "2026-07-15T09:25:00Z",
       },
     ]);
@@ -294,5 +304,65 @@ export function addDemoDmt2Request(input: Omit<DemoDmt2Request, "id" | "status">
 export function updateDemoDmt2RequestStatus(id: string, status: DemoDmt2Request["status"], note?: string) {
   const next = getDemoDmt2Requests().map((item) => (item.id === id ? { ...item, status, note: note ?? item.note, lastUpdatedAt: new Date().toISOString() } : item));
   writeStorage(STORAGE_KEYS.dmt2Requests, next);
+  return next;
+}
+
+// Slider Images Functions
+export function getDemoSliderImages() {
+  const images = readStorage<DemoSliderImage[]>(STORAGE_KEYS.sliderImages, []);
+  // Seed default images if none exist
+  if (images.length === 0) {
+    const defaults: DemoSliderImage[] = [
+      {
+        id: crypto.randomUUID(),
+        title: "Welcome to Pay Solution",
+        description: "Empower your business with fast, reliable payment solutions",
+        imageUrl: "https://images.unsplash.com/photo-1556740738-b6a63e27c4df?w=1200&h=400&fit=crop",
+        active: true,
+      },
+      {
+        id: crypto.randomUUID(),
+        title: "Fast Money Transfers",
+        description: "Send and receive money instantly across the network",
+        imageUrl: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=1200&h=400&fit=crop",
+        active: true,
+      },
+      {
+        id: crypto.randomUUID(),
+        title: "Secure Transactions",
+        description: "Your transactions are protected with enterprise-grade security",
+        imageUrl: "https://images.unsplash.com/photo-1563986768609-322d92315b2b?w=1200&h=400&fit=crop",
+        active: true,
+      },
+    ];
+    writeStorage(STORAGE_KEYS.sliderImages, defaults);
+    return defaults;
+  }
+  return images;
+}
+
+export function addDemoSliderImage(input: Omit<DemoSliderImage, "id">) {
+  const next = [...getDemoSliderImages(), { id: crypto.randomUUID(), ...input }];
+  writeStorage(STORAGE_KEYS.sliderImages, next);
+  return next[next.length - 1];
+}
+
+export function updateDemoSliderImage(id: string, input: Partial<Omit<DemoSliderImage, "id">>) {
+  const next = getDemoSliderImages().map((item) => (item.id === id ? { ...item, ...input } : item));
+  writeStorage(STORAGE_KEYS.sliderImages, next);
+  return next;
+}
+
+export function deleteDemoSliderImage(id: string) {
+  const next = getDemoSliderImages().filter((item) => item.id !== id);
+  writeStorage(STORAGE_KEYS.sliderImages, next);
+  return next;
+}
+
+export function toggleDemoSliderImageActive(id: string) {
+  const next = getDemoSliderImages().map((item) =>
+    item.id === id ? { ...item, active: !item.active } : item
+  );
+  writeStorage(STORAGE_KEYS.sliderImages, next);
   return next;
 }

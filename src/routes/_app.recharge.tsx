@@ -29,7 +29,7 @@ function RechargePage() {
 
   const submit = () => {
     const ref = `RCH-${Math.floor(1000 + Math.random() * 9000)}`;
-    addDemoTransaction({ type: "Recharge", amount: Number(amount), status: "Success", reference: ref, customer: mobile, createdAt: new Date().toISOString(), channel: operator, note: `${operator} ${circle} recharge` });
+    addDemoTransaction({ type: "Recharge", amount: Number(amount), status: "Processed Successfully", reference: ref, customer: mobile, createdAt: new Date().toISOString(), channel: operator, note: `${operator} ${circle} recharge` });
     setReceipt(ref);
     setStatus("success");
   };

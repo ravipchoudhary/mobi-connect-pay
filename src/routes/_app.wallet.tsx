@@ -38,7 +38,7 @@ function fmt(n: number) {
 function WalletPage() {
   const qc = useQueryClient();
   const overview = useServerFn(getMyWalletOverview);
-  const { data, isLoading } = useQuery({ queryKey: ["wallet-overview"], queryFn: () => overview({ data: undefined as never }) });
+  const { data, isLoading } = useQuery({ queryKey: ["wallet-overview"], queryFn: () => overview({ data: undefined as never }), refetchOnWindowFocus: true });
 
   const wallets = data?.wallets ?? [];
   const ledger = data?.ledger ?? [];
